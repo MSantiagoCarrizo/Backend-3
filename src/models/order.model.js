@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { ORDER_STATUS, DELIVERY_PRIORITY } from "../constants/index.js";
 
 const orderItemSchema = new mongoose.Schema(
   {
@@ -46,13 +47,13 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["created", "assigned", "picked_up", "in_transit", "delivered", "cancelled"],
-      default: "created"
+      enum: Object.values(ORDER_STATUS),
+      default: ORDER_STATUS.CREATED
     },
     priority: {
       type: String,
-      enum: ["low", "normal", "high"],
-      default: "normal"
+      enum: Object.values(DELIVERY_PRIORITY),
+      default: DELIVERY_PRIORITY.NORMAL
     },
     proof: {
       type: Object,
