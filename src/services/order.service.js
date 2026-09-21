@@ -29,6 +29,12 @@ export const orderService = {
       throw error;
     }
 
+    if (!Array.isArray(items) || items.length === 0) {
+      const error = new Error('El pedido debe tener al menos un producto');
+      error.statusCode = 400;
+      throw error;
+    }
+
     const userFound = await userRepository.findById(customer);
     if (!userFound) {
       const error = new Error('Usuario no encontrado');
