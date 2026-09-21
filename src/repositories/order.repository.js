@@ -2,11 +2,11 @@ import OrderModel from '../models/order.model.js';
 
 export const orderRepository = {
   findAll: async () => {
-    return OrderModel.find().populate('customer').populate('store');
+    return OrderModel.find().populate('customer', '-password').populate('store');
   },
 
   findById: async (id) => {
-    return OrderModel.findById(id).populate('customer').populate('store');
+    return OrderModel.findById(id).populate('customer', '-password').populate('store');
   },
 
   create: async (orderData) => {
