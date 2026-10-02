@@ -1,6 +1,6 @@
 # ShipNow API
 
-API REST para la gestión de logística y envíos. Permite administrar usuarios, comercios y pedidos, y está construida con Node.js, Express y MongoDB (Mongoose).
+API REST para la gestión de logística y envíos. Permite administrar usuarios, comercios, pedidos y entregas, y está construida con Node.js, Express y MongoDB (Mongoose).
 
 El proyecto está organizado en una arquitectura por capas (Controller → Service → Repository) y valida su configuración de entorno al arrancar.
 
@@ -94,22 +94,34 @@ Request → Router → Controller → Service → Repository → Model → Mongo
     ├── constants/
     │   └── index.js              Roles, estados y prioridades del dominio
     ├── controllers/
+    │   ├── delivery.controller.js
+    │   ├── mocks.controller.js
     │   ├── order.controller.js
     │   ├── store.controller.js
     │   └── user.controller.js
+    ├── mocks/
+    │   ├── user.mock.js          Genera usuarios y repartidores de prueba
+    │   ├── order.mock.js         Genera pedidos de prueba
+    │   └── delivery.mock.js      Genera entregas de prueba
     ├── models/
+    │   ├── delivery.model.js
     │   ├── order.model.js
     │   ├── store.model.js
     │   └── user.model.js
     ├── repositories/
+    │   ├── delivery.repository.js
     │   ├── order.repository.js
     │   ├── store.repository.js
     │   └── user.repository.js
     ├── routes/
+    │   ├── delivery.router.js
+    │   ├── mocks.router.js
     │   ├── orders.router.js
     │   ├── stores.router.js
     │   └── users.router.js
     ├── services/
+    │   ├── delivery.service.js
+    │   ├── mocks.service.js
     │   ├── order.service.js
     │   ├── store.service.js
     │   └── user.service.js
@@ -143,9 +155,10 @@ Los valores fijos del negocio están centralizados en `src/constants/index.js` c
 
 | Constante | Valores |
 | --- | --- |
-| `USER_ROLES` | `admin`, `customer`, `store` |
+| `USER_ROLES` | `admin`, `customer`, `store`, `driver` |
 | `ORDER_STATUS` | `created`, `assigned`, `picked_up`, `in_transit`, `delivered`, `cancelled` |
 | `DELIVERY_PRIORITY` | `low`, `normal`, `high` |
+| `DELIVERY_STATUS` | `assigned`, `in_transit`, `delivered`, `cancelled` |
 
 ## Modelo de datos
 
@@ -179,6 +192,16 @@ Los valores fijos del negocio están centralizados en `src/constants/index.js` c
 | `status` | String | Uno de `ORDER_STATUS`, por defecto `created` |
 | `priority` | String | Uno de `DELIVERY_PRIORITY`, por defecto `normal` |
 | `proof` | Object | Por defecto `null` |
+
+### Delivery
+
+| Campo | Tipo | Detalle |
+| --- | --- | --- |
+| `order` | ObjectId | Referencia a un Order, obligatorio |
+| `driver` | ObjectId | Referencia a un User con rol `driver`, obligatorio |
+| `status` | String | Uno de `DELIVERY_STATUS`, por defecto `assigned` |
+| `priority` | String | Uno de `DELIVERY_PRIORITY`, por defecto `normal` |
+| `notes` | String | Opcional |
 
 Todos los modelos incluyen `createdAt` y `updatedAt`.
 
@@ -272,6 +295,72 @@ Ejemplo de body para actualizar el estado:
 ```json
 {
   "status": "in_transit"
+}
+```
+
+### Deliveries
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| GET | `/api/deliveries` | Lista las entregas, con el pedido y el repartidor (sin password) |
+| GET | `/api/deliveries/:did` | Obtiene una entrega |
+| POST | `/api/deliveries` | Crea una entrega |
+| PUT | `/api/deliveries/:did/status` | Actualiza el estado de una entrega |
+| DELETE | `/api/deliveries/:did` | Elimina una entrega |
+
+Al crear una entrega, el Service:
+
+* exige `order` y `driver`;
+* comprueba que el pedido exista;
+* comprueba que el usuario indicado como `driver` exista y tenga `role: "driver"`;
+* asigna el estado inicial `assigned` y la prioridad `normal` si no se envía otra.
+
+Ejemplo de body para crear una entrega (`notes` es opcional):
+
+```json
+{
+  "order": "ID_DEL_PEDIDO",
+  "driver": "ID_DEL_REPARTIDOR",
+  "notes": "Entregar en portería"
+}
+```
+
+### Mocking
+
+Endpoints para generar datos de prueba durante el desarrollo, sin afectar el flujo normal de la API. Están pensados para completar la base rápido al testear, no para usarse desde una aplicación real.
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| GET | `/api/mocks/mockingusers?qty=N` | Genera usuarios falsos de ejemplo, sin guardarlos en la base |
+| GET | `/api/mocks/mockingorders?qty=N` | Genera pedidos falsos de ejemplo, sin guardarlos en la base |
+| POST | `/api/mocks/generateData` | Genera e inserta datos de prueba reales en la base |
+
+`qty` es opcional en los dos `GET`; si no se envía, se usa 10 por defecto.
+
+`POST /api/mocks/generateData` recibe en el body cuántos registros generar de cada tipo:
+
+```json
+{
+  "users": 5,
+  "drivers": 2,
+  "orders": 5,
+  "deliveries": 5
+}
+```
+
+Cada campo es opcional y por defecto es `0`. El orden importa: para generar `orders` hace falta pedir `users` en la misma solicitud (los pedidos quedan asociados a esos usuarios recién creados), y además tiene que existir al menos un `Store` ya cargado en la base (los comercios no se generan automáticamente). Para generar `deliveries` hace falta pedir `orders` y `drivers` en la misma solicitud. Si falta alguno de estos requisitos, la API responde con un error 400 explicando qué falta.
+
+Respuesta esperada:
+
+```json
+{
+  "status": "success",
+  "payload": {
+    "users": 5,
+    "drivers": 2,
+    "orders": 5,
+    "deliveries": 5
+  }
 }
 ```
 
