@@ -13,6 +13,10 @@ export const userRepository = {
     return UserModel.create(userData);
   },
 
+  insertMany: async (usersData) => {
+    return UserModel.insertMany(usersData);
+  },
+
   update: async (id, userData) => {
     return UserModel.findByIdAndUpdate(id, userData, {
       new: true,

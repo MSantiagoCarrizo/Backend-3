@@ -13,6 +13,10 @@ export const deliveryRepository = {
     return DeliveryModel.create(deliveryData);
   },
 
+  insertMany: async (deliveriesData) => {
+    return DeliveryModel.insertMany(deliveriesData);
+  },
+
   updateStatus: async (id, status) => {
     return DeliveryModel.findByIdAndUpdate(
       id,
