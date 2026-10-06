@@ -2,6 +2,8 @@ import { deliveryRepository } from '../repositories/delivery.repository.js';
 import { orderRepository } from '../repositories/order.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import { DELIVERY_STATUS, DELIVERY_PRIORITY, USER_ROLES } from '../constants/index.js';
+import { createError } from '../utils/apiResponse.js';
+import { ERROR_CODES } from '../utils/errorDictionary.js';
 
 export const deliveryService = {
   getDeliveries: async () => {
@@ -11,9 +13,7 @@ export const deliveryService = {
   getDeliveryById: async (id) => {
     const delivery = await deliveryRepository.findById(id);
     if (!delivery) {
-      const error = new Error('Entrega no encontrada');
-      error.statusCode = 404;
-      throw error;
+      throw createError(ERROR_CODES.DELIVERY_NOT_FOUND);
     }
     return delivery;
   },
@@ -22,29 +22,21 @@ export const deliveryService = {
     const { order, driver, priority, notes } = deliveryData;
 
     if (!order || !driver) {
-      const error = new Error('Faltan datos obligatorios');
-      error.statusCode = 400;
-      throw error;
+      throw createError(ERROR_CODES.VALIDATION_ERROR);
     }
 
     const orderFound = await orderRepository.findById(order);
     if (!orderFound) {
-      const error = new Error('Pedido no encontrado');
-      error.statusCode = 404;
-      throw error;
+      throw createError(ERROR_CODES.ORDER_NOT_FOUND);
     }
 
     const driverFound = await userRepository.findById(driver);
     if (!driverFound) {
-      const error = new Error('Repartidor no encontrado');
-      error.statusCode = 404;
-      throw error;
+      throw createError(ERROR_CODES.DRIVER_NOT_FOUND);
     }
 
     if (driverFound.role !== USER_ROLES.DRIVER) {
-      const error = new Error('El usuario indicado no tiene el rol de repartidor');
-      error.statusCode = 400;
-      throw error;
+      throw createError(ERROR_CODES.INVALID_DRIVER_ROLE);
     }
 
     const newDelivery = {
@@ -59,11 +51,13 @@ export const deliveryService = {
   },
 
   updateDeliveryStatus: async (id, status) => {
+    if (!Object.values(DELIVERY_STATUS).includes(status)) {
+      throw createError(ERROR_CODES.INVALID_DELIVERY_STATUS);
+    }
+
     const delivery = await deliveryRepository.updateStatus(id, status);
     if (!delivery) {
-      const error = new Error('Entrega no encontrada');
-      error.statusCode = 404;
-      throw error;
+      throw createError(ERROR_CODES.DELIVERY_NOT_FOUND);
     }
     return delivery;
   },
@@ -71,9 +65,7 @@ export const deliveryService = {
   deleteDelivery: async (id) => {
     const delivery = await deliveryRepository.delete(id);
     if (!delivery) {
-      const error = new Error('Entrega no encontrada');
-      error.statusCode = 404;
-      throw error;
+      throw createError(ERROR_CODES.DELIVERY_NOT_FOUND);
     }
     return delivery;
   },
