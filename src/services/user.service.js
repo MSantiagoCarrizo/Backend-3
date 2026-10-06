@@ -1,4 +1,6 @@
 import { userRepository } from '../repositories/user.repository.js';
+import { createError } from '../utils/apiResponse.js';
+import { ERROR_CODES } from '../utils/errorDictionary.js';
 
 export const userService = {
   getUsers: async () => {
@@ -9,9 +11,7 @@ export const userService = {
     const user = await userRepository.findById(id);
 
     if (!user) {
-      const error = new Error('Usuario no encontrado');
-      error.statusCode = 404;
-      throw error;
+      throw createError(ERROR_CODES.USER_NOT_FOUND);
     }
 
     return user;
@@ -25,9 +25,7 @@ export const userService = {
     const user = await userRepository.update(id, userData);
 
     if (!user) {
-      const error = new Error('Usuario no encontrado');
-      error.statusCode = 404;
-      throw error;
+      throw createError(ERROR_CODES.USER_NOT_FOUND);
     }
 
     return user;
@@ -37,9 +35,7 @@ export const userService = {
     const user = await userRepository.delete(id);
 
     if (!user) {
-      const error = new Error('Usuario no encontrado');
-      error.statusCode = 404;
-      throw error;
+      throw createError(ERROR_CODES.USER_NOT_FOUND);
     }
 
     return user;
