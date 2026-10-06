@@ -1,4 +1,6 @@
 import { storeRepository } from '../repositories/store.repository.js';
+import { createError } from '../utils/apiResponse.js';
+import { ERROR_CODES } from '../utils/errorDictionary.js';
 
 export const storeService = {
   getStores: async () => {
@@ -9,9 +11,7 @@ export const storeService = {
     const store = await storeRepository.findById(id);
 
     if (!store) {
-      const error = new Error('Comercio no encontrado');
-      error.statusCode = 404;
-      throw error;
+      throw createError(ERROR_CODES.STORE_NOT_FOUND);
     }
 
     return store;
@@ -25,9 +25,7 @@ export const storeService = {
     const store = await storeRepository.update(id, storeData);
 
     if (!store) {
-      const error = new Error('Comercio no encontrado');
-      error.statusCode = 404;
-      throw error;
+      throw createError(ERROR_CODES.STORE_NOT_FOUND);
     }
 
     return store;
@@ -37,9 +35,7 @@ export const storeService = {
     const store = await storeRepository.delete(id);
 
     if (!store) {
-      const error = new Error('Comercio no encontrado');
-      error.statusCode = 404;
-      throw error;
+      throw createError(ERROR_CODES.STORE_NOT_FOUND);
     }
 
     return store;
