@@ -26,3 +26,5 @@ export const DELIVERY_STATUS = Object.freeze({
   DELIVERED: 'delivered',
   CANCELLED: 'cancelled',
 });
+
+export const MOCK_MAX_QUANTITY = 1000;

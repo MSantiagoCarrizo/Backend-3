@@ -1,31 +1,29 @@
 import { mocksService } from '../services/mocks.service.js';
 
-export const getMockUsers = (req, res) => {
+export const getMockUsers = (req, res, next) => {
     try {
-        const quantity = Number(req.query.qty) || 10;
-        const users = mocksService.getMockUsers(quantity);
+        const users = mocksService.getMockUsers(req.query.qty);
         res.status(200).json({ status: 'success', payload: users });
     } catch (error) {
-        res.status(error.statusCode || 500).json({ status: 'error', message: error.message });
+        next(error);
     }
 };
 
-export const getMockOrders = (req, res) => {
+export const getMockOrders = (req, res, next) => {
     try {
-        const quantity = Number(req.query.qty) || 10;
-        const orders = mocksService.getMockOrders(quantity);
+        const orders = mocksService.getMockOrders(req.query.qty);
         res.status(200).json({ status: 'success', payload: orders });
     } catch (error) {
-        res.status(error.statusCode || 500).json({ status: 'error', message: error.message });
+        next(error);
     }
 };
 
-export const generateData = async (req, res) => {
+export const generateData = async (req, res, next) => {
     try {
-        const { users = 0, drivers = 0, orders = 0, deliveries = 0 } = req.body;
+        const { users, drivers, orders, deliveries } = req.body;
         const result = await mocksService.generateData({ users, drivers, orders, deliveries });
         res.status(201).json({ status: 'success', payload: result });
     } catch (error) {
-        res.status(error.statusCode || 500).json({ status: 'error', message: error.message });
+        next(error);
     }
 };

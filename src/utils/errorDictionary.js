@@ -1,3 +1,5 @@
+import { MOCK_MAX_QUANTITY } from '../constants/index.js';
+
 export const ERROR_CODES = Object.freeze({
   INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
   ROUTE_NOT_FOUND: 'ROUTE_NOT_FOUND',
@@ -15,6 +17,7 @@ export const ERROR_CODES = Object.freeze({
   INVALID_DELIVERY_STATUS: 'INVALID_DELIVERY_STATUS',
   INVALID_DRIVER_ROLE: 'INVALID_DRIVER_ROLE',
   INVALID_MOCK_AMOUNT: 'INVALID_MOCK_AMOUNT',
+  MOCK_AMOUNT_TOO_LARGE: 'MOCK_AMOUNT_TOO_LARGE',
   MOCK_USERS_REQUIRED: 'MOCK_USERS_REQUIRED',
   NO_STORES_AVAILABLE: 'NO_STORES_AVAILABLE',
   MOCK_DELIVERIES_REQUIRED: 'MOCK_DELIVERIES_REQUIRED',
@@ -38,6 +41,7 @@ export const ERROR_DICTIONARY = Object.freeze({
   [ERROR_CODES.INVALID_DELIVERY_STATUS]: { statusCode: 400, message: 'Estado de entrega inválido' },
   [ERROR_CODES.INVALID_DRIVER_ROLE]: { statusCode: 400, message: 'El usuario no es repartidor' },
   [ERROR_CODES.INVALID_MOCK_AMOUNT]: { statusCode: 400, message: 'Cantidad inválida' },
+  [ERROR_CODES.MOCK_AMOUNT_TOO_LARGE]: { statusCode: 400, message: `Cantidad máxima: ${MOCK_MAX_QUANTITY}` },
   [ERROR_CODES.MOCK_USERS_REQUIRED]: { statusCode: 400, message: 'Faltan usuarios para generar pedidos' },
   [ERROR_CODES.NO_STORES_AVAILABLE]: { statusCode: 400, message: 'No hay comercios registrados' },
   [ERROR_CODES.MOCK_DELIVERIES_REQUIRED]: { statusCode: 400, message: 'Faltan pedidos y repartidores' },
