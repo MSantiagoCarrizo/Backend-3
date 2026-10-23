@@ -12,6 +12,7 @@ El proyecto está organizado en una arquitectura por capas (Controller → Servi
 * dotenv, para las variables de entorno
 * cors, para habilitar peticiones desde otros orígenes (por ejemplo, un frontend en otro dominio o puerto)
 * nodemon, en desarrollo
+* supertest, para los tests de integración (se ejecutan con el runner de Node, `node --test`)
 
 ## Instalación y ejecución
 
@@ -87,52 +88,58 @@ Request → Router → Controller → Service → Repository → Model → Mongo
 ├── README.md
 ├── package-lock.json
 ├── package.json
-└── src/
-    ├── config/
-    │   ├── index.js              Carga y valida las variables de entorno
-    │   └── db.js                 Conexión a MongoDB
-    ├── constants/
-    │   └── index.js              Roles, estados, prioridades y límites del dominio
-    ├── controllers/
-    │   ├── delivery.controller.js
-    │   ├── mocks.controller.js
-    │   ├── order.controller.js
-    │   ├── store.controller.js
-    │   └── user.controller.js
-    ├── middlewares/
-    │   ├── errorHandler.js       Middleware global: único lugar que responde los errores
-    │   └── notFoundHandler.js    Convierte las rutas inexistentes en un error 404
-    ├── mocks/
-    │   ├── user.mock.js          Genera usuarios y repartidores de prueba
-    │   ├── order.mock.js         Genera pedidos de prueba
-    │   └── delivery.mock.js      Genera entregas de prueba
-    ├── models/
-    │   ├── delivery.model.js
-    │   ├── order.model.js
-    │   ├── store.model.js
-    │   └── user.model.js
-    ├── repositories/
-    │   ├── delivery.repository.js
-    │   ├── order.repository.js
-    │   ├── store.repository.js
-    │   └── user.repository.js
-    ├── routes/
-    │   ├── delivery.router.js
-    │   ├── mocks.router.js
-    │   ├── orders.router.js
-    │   ├── stores.router.js
-    │   └── users.router.js
-    ├── services/
-    │   ├── delivery.service.js
-    │   ├── mocks.service.js
-    │   ├── order.service.js
-    │   ├── store.service.js
-    │   └── user.service.js
-    ├── utils/
-    │   ├── errorDictionary.js    Códigos de error, con su status y su mensaje
-    │   └── apiResponse.js        createError y errorResponse
-    ├── app.js                    Configuración de Express y montaje de rutas
-    └── server.js                 Punto de entrada: conecta la base y levanta el servidor
+├── src/
+│   ├── config/
+│   │   ├── index.js              Carga y valida las variables de entorno
+│   │   └── db.js                 Conexión a MongoDB
+│   ├── constants/
+│   │   └── index.js              Roles, estados, prioridades y límites del dominio
+│   ├── controllers/
+│   │   ├── delivery.controller.js
+│   │   ├── mocks.controller.js
+│   │   ├── order.controller.js
+│   │   ├── store.controller.js
+│   │   └── user.controller.js
+│   ├── middlewares/
+│   │   ├── errorHandler.js       Middleware global: único lugar que responde los errores
+│   │   └── notFoundHandler.js    Convierte las rutas inexistentes en un error 404
+│   ├── mocks/
+│   │   ├── user.mock.js          Genera usuarios y repartidores de prueba
+│   │   ├── order.mock.js         Genera pedidos de prueba
+│   │   └── delivery.mock.js      Genera entregas de prueba
+│   ├── models/
+│   │   ├── delivery.model.js
+│   │   ├── order.model.js
+│   │   ├── store.model.js
+│   │   └── user.model.js
+│   ├── repositories/
+│   │   ├── delivery.repository.js
+│   │   ├── order.repository.js
+│   │   ├── store.repository.js
+│   │   └── user.repository.js
+│   ├── routes/
+│   │   ├── delivery.router.js
+│   │   ├── mocks.router.js
+│   │   ├── orders.router.js
+│   │   ├── stores.router.js
+│   │   └── users.router.js
+│   ├── services/
+│   │   ├── delivery.service.js
+│   │   ├── mocks.service.js
+│   │   ├── order.service.js
+│   │   ├── store.service.js
+│   │   └── user.service.js
+│   ├── utils/
+│   │   ├── errorDictionary.js    Códigos de error, con su status y su mensaje
+│   │   └── apiResponse.js        createError y errorResponse
+│   ├── app.js                    Configuración de Express y montaje de rutas
+│   └── server.js                 Punto de entrada: conecta la base y levanta el servidor
+└── tests/
+    ├── setup.js                  Variables de entorno para correr los tests sin .env
+    ├── helpers.js                Cliente HTTP (supertest) y verificación del formato de error
+    ├── errors.test.js            Ruta inexistente, JSON/ID/validación, error 11000 y error inesperado
+    ├── mocks.test.js             Cantidades inválidas y errores de generateData
+    └── recursos.test.js          Errores de usuarios, comercios, pedidos y entregas
 ```
 
 ### Responsabilidad de cada capa
@@ -505,6 +512,24 @@ Casos del módulo de mocks:
 | `POST /api/mocks/generateData` con `{ "users": 2, "orders": 3 }`, sin comercios en la base | `400`, `NO_STORES_AVAILABLE` |
 
 `MOCK_GENERATION_ERROR` aparece si MongoDB falla durante la carga, por ejemplo si se pierde la conexión con la base mientras se llama a `generateData`.
+
+### Tests automáticos
+
+Los casos de las tablas anteriores también están como tests de integración, para repetirlos con un solo comando en lugar de armar cada request a mano:
+
+```bash
+npm test
+```
+
+Requiere Node.js 20 o superior. Los tests usan `supertest` para hacer las peticiones a la app y el runner de Node (`node --test`). No necesitan MongoDB ni un archivo `.env`: definen sus propias variables de entorno (`tests/setup.js`) y, cuando hace falta, reemplazan un método del repository por una respuesta simulada (por ejemplo, que un usuario no existe o que Mongo devuelve un error `11000`).
+
+| Archivo | Qué verifica |
+| --- | --- |
+| `tests/errors.test.js` | Ruta inexistente (`ROUTE_NOT_FOUND`), traducción de JSON mal formado, ID inválido y validación de Mongoose, error `11000` según el campo repetido (`EMAIL_ALREADY_EXISTS` o `DUPLICATE_KEY`) y error inesperado (`INTERNAL_SERVER_ERROR`) |
+| `tests/mocks.test.js` | Cantidades inválidas o demasiado grandes en los mocks y errores de `generateData` |
+| `tests/recursos.test.js` | Recursos inexistentes, estados inválidos y repartidores inválidos en usuarios, comercios, pedidos y entregas |
+
+Cada test comprueba el status HTTP y que el body sea exactamente `{ status, message, code }`, con el mensaje del diccionario de errores.
 
 ## Autor
 
