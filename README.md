@@ -426,11 +426,13 @@ El `errorHandler` también traduce los errores que no son nuestros, para que res
 | --- | --- |
 | ID de Mongo con formato incorrecto (`CastError`) | `INVALID_ID` |
 | Mongoose rechaza un dato (`ValidationError`) | `VALIDATION_ERROR` |
-| Email repetido (error `11000` de Mongo) | `EMAIL_ALREADY_EXISTS` |
+| Valor repetido en un campo único (error `11000` de Mongo) | `EMAIL_ALREADY_EXISTS` si el campo repetido es `email`, `DUPLICATE_KEY` si es cualquier otro |
 | JSON mal formado en el body | `INVALID_JSON` |
 | Cualquier error inesperado | `INTERNAL_SERVER_ERROR` |
 
 Los errores inesperados se muestran completos en la consola del servidor, pero al cliente solo le llega el mensaje genérico, para no exponer detalles internos.
+
+Para saber qué campo se repitió, el `errorHandler` lee `error.keyPattern` y lo busca en `DUPLICATE_KEY_CODES`. Hoy el único campo `unique` es `email`; si se agrega otro, se suma a ese objeto con su propio código.
 
 ### Códigos de error
 
@@ -442,6 +444,7 @@ Los errores inesperados se muestran completos en la consola del servidor, pero a
 | `INVALID_ID` | 400 | ID inválido | Un ID tiene un formato incorrecto |
 | `INVALID_JSON` | 400 | JSON inválido | El body no es un JSON válido |
 | `EMAIL_ALREADY_EXISTS` | 409 | El email ya está registrado | Se crea o actualiza un usuario con un email ya registrado |
+| `DUPLICATE_KEY` | 409 | El registro ya existe | Se repite el valor de un campo único que no es el email |
 | `USER_NOT_FOUND` | 404 | Usuario no encontrado | El usuario no existe |
 | `STORE_NOT_FOUND` | 404 | Comercio no encontrado | El comercio no existe |
 | `ORDER_NOT_FOUND` | 404 | Pedido no encontrado | El pedido no existe |
@@ -466,7 +469,7 @@ Los errores inesperados se muestran completos en la consola del servidor, pero a
 | 201 | Recurso creado |
 | 400 | Datos inválidos, faltan campos obligatorios, el ID tiene un formato incorrecto o una cantidad de los mocks no es válida |
 | 404 | El recurso solicitado no existe, o la ruta no existe |
-| 409 | El email ya está registrado |
+| 409 | El email ya está registrado, o se repite el valor de otro campo único |
 | 500 | Error inesperado, o falla de MongoDB al generar datos de prueba |
 
 ### Cómo probar los casos inválidos
