@@ -24,6 +24,7 @@ const colors = {
 winston.addColors(colors);
 
 const level = config.nodeEnv === 'production' ? 'info' : 'debug';
+const isTest = config.nodeEnv === 'test';
 
 const timestamp = winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' });
 
@@ -31,25 +32,33 @@ const line = winston.format.printf(
     ({ timestamp, level, message }) => `${timestamp} [${level}] ${message}`
 );
 
-const logger = winston.createLogger({
-    levels,
-    level,
-    format: winston.format.combine(timestamp, line),
-    transports: [
-        new winston.transports.Console({
-            format: winston.format.combine(
-                winston.format.colorize(),
-                timestamp,
-                line
-            ),
-        }),
+const transports = [
+    new winston.transports.Console({
+        format: winston.format.combine(
+            winston.format.colorize(),
+            timestamp,
+            line
+        ),
+    }),
+];
+
+if (!isTest) {
+    transports.push(
         new DailyRotateFile({
             filename: 'logs/error-%DATE%.log',
             datePattern: 'YYYY-MM-DD',
             level: 'error',
             maxFiles: '14d',
-        }),
-    ],
+        })
+    );
+}
+
+const logger = winston.createLogger({
+    levels,
+    level,
+    silent: isTest,
+    format: winston.format.combine(timestamp, line),
+    transports,
 });
 
 export default logger;
