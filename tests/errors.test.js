@@ -69,7 +69,6 @@ describe('Error 11000 de Mongo (valor repetido en un campo único)', () => {
 
 describe('Error inesperado', () => {
     test('responde INTERNAL_SERVER_ERROR con el formato unificado y sin mostrar el detalle', async () => {
-        mock.method(console, 'error', () => { });
         mock.method(userRepository, 'findAll', async () => {
             throw new Error('detalle interno que no debe llegar al cliente');
         });
