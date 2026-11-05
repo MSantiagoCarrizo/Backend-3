@@ -2,7 +2,7 @@
 
 API REST para la gestión de logística y envíos. Permite administrar usuarios, comercios, pedidos y entregas, y está construida con Node.js, Express y MongoDB (Mongoose).
 
-El proyecto está organizado en una arquitectura por capas (Controller → Service → Repository), valida su configuración de entorno al arrancar y maneja todos los errores en una capa común, con respuestas uniformes.
+El proyecto está organizado en una arquitectura por capas (Controller → Service → Repository), valida su configuración de entorno al arrancar y maneja todos los errores en una capa común, con respuestas uniformes, y registra lo que ocurre con un logger centralizado (Winston).
 
 ## Tecnologías
 
@@ -11,6 +11,7 @@ El proyecto está organizado en una arquitectura por capas (Controller → Servi
 * MongoDB con Mongoose 8
 * dotenv, para las variables de entorno
 * cors, para habilitar peticiones desde otros orígenes (por ejemplo, un frontend en otro dominio o puerto)
+* Winston y winston-daily-rotate-file, para el logging y la rotación de los archivos de log
 * nodemon, en desarrollo
 * supertest, para los tests de integración (se ejecutan con el runner de Node, `node --test`)
 
@@ -61,7 +62,7 @@ Con `npm start` se inicia sin nodemon.
 | --- | --- |
 | `PORT` | Puerto en el que corre el servidor |
 | `MONGODB_URI` | URI de conexión a MongoDB, incluyendo el nombre de la base de datos |
-| `NODE_ENV` | Entorno de ejecución (por ejemplo `development`) |
+| `NODE_ENV` | Entorno de ejecución: `development` o `production`. También define cuánto detalle se registra en los logs (ver [Logging](#logging)) |
 
 Las tres variables son obligatorias y se validan una sola vez, al iniciar la aplicación, en `src/config/index.js`. Si falta alguna, la aplicación no arranca y muestra un error descriptivo:
 
@@ -91,18 +92,21 @@ Request → Router → Controller → Service → Repository → Model → Mongo
 ├── src/
 │   ├── config/
 │   │   ├── index.js              Carga y valida las variables de entorno
-│   │   └── db.js                 Conexión a MongoDB
+│   │   ├── db.js                 Conexión a MongoDB
+│   │   └── logger.js             Logger central (Winston): niveles, formato y archivos
 │   ├── constants/
 │   │   └── index.js              Roles, estados, prioridades y límites del dominio
 │   ├── controllers/
 │   │   ├── delivery.controller.js
+│   │   ├── logger.controller.js  Endpoint de prueba del logger
 │   │   ├── mocks.controller.js
 │   │   ├── order.controller.js
 │   │   ├── store.controller.js
 │   │   └── user.controller.js
 │   ├── middlewares/
 │   │   ├── errorHandler.js       Middleware global: único lugar que responde los errores
-│   │   └── notFoundHandler.js    Convierte las rutas inexistentes en un error 404
+│   │   ├── notFoundHandler.js    Convierte las rutas inexistentes en un error 404
+│   │   └── requestLogger.js      Registra cada petición HTTP (nivel http)
 │   ├── mocks/
 │   │   ├── user.mock.js          Genera usuarios y repartidores de prueba
 │   │   ├── order.mock.js         Genera pedidos de prueba
@@ -119,6 +123,7 @@ Request → Router → Controller → Service → Repository → Model → Mongo
 │   │   └── user.repository.js
 │   ├── routes/
 │   │   ├── delivery.router.js
+│   │   ├── logger.router.js      Ruta /loggerTest
 │   │   ├── mocks.router.js
 │   │   ├── orders.router.js
 │   │   ├── stores.router.js
@@ -138,6 +143,7 @@ Request → Router → Controller → Service → Repository → Model → Mongo
     ├── setup.js                  Variables de entorno para correr los tests sin .env
     ├── helpers.js                Cliente HTTP (supertest) y verificación del formato de error
     ├── errors.test.js            Ruta inexistente, JSON/ID/validación, error 11000 y error inesperado
+    ├── logging.test.js           Logs de errores, eventos, peticiones y /loggerTest
     ├── mocks.test.js             Cantidades inválidas y errores de generateData
     └── recursos.test.js          Errores de usuarios, comercios, pedidos y entregas
 ```
@@ -229,6 +235,7 @@ La URL base en local es `http://localhost:8080`. Los endpoints se pueden probar 
 | Método | Ruta | Descripción |
 | --- | --- | --- |
 | GET | `/health` | Verifica que la API está funcionando |
+| GET | `/loggerTest` | Genera un log de cada nivel para probar el logger (está en la raíz, fuera de `/api`; ver [Logging](#logging)) |
 
 ### Users
 
@@ -437,7 +444,7 @@ El `errorHandler` también traduce los errores que no son nuestros, para que res
 | JSON mal formado en el body | `INVALID_JSON` |
 | Cualquier error inesperado | `INTERNAL_SERVER_ERROR` |
 
-Los errores inesperados se muestran completos en la consola del servidor, pero al cliente solo le llega el mensaje genérico, para no exponer detalles internos.
+Los errores inesperados se registran completos en el log (ver [Logging](#logging)), pero al cliente solo le llega el mensaje genérico, para no exponer detalles internos.
 
 Para saber qué campo se repitió, el `errorHandler` lee `error.keyPattern` y lo busca en `DUPLICATE_KEY_CODES`. Hoy el único campo `unique` es `email`; si se agrega otro, se suma a ese objeto con su propio código.
 
@@ -526,10 +533,108 @@ Requiere Node.js 20 o superior. Los tests usan `supertest` para hacer las petici
 | Archivo | Qué verifica |
 | --- | --- |
 | `tests/errors.test.js` | Ruta inexistente (`ROUTE_NOT_FOUND`), traducción de JSON mal formado, ID inválido y validación de Mongoose, error `11000` según el campo repetido (`EMAIL_ALREADY_EXISTS` o `DUPLICATE_KEY`) y error inesperado (`INTERNAL_SERVER_ERROR`) |
+| `tests/logging.test.js` | Que el `errorHandler` registre un `warning` o un `error` según el tipo de error, los eventos de pedido, entrega y `generateData`, el registro de cada petición (`http`) y que `/loggerTest` genere los seis niveles |
 | `tests/mocks.test.js` | Cantidades inválidas o demasiado grandes en los mocks y errores de `generateData` |
 | `tests/recursos.test.js` | Recursos inexistentes, estados inválidos y repartidores inválidos en usuarios, comercios, pedidos y entregas |
 
 Cada test comprueba el status HTTP y que el body sea exactamente `{ status, message, code }`, con el mensaje del diccionario de errores.
+
+Durante los tests el logger no imprime ni escribe archivos (`NODE_ENV=test`). Para verificar qué se registra, los tests de `logging.test.js` reemplazan los métodos del logger por espías que anotan con qué mensaje fueron llamados.
+
+## Logging
+
+La aplicación registra lo que ocurre con [Winston](https://github.com/winstonjs/winston), configurado en un único módulo: `src/config/logger.js`. Ningún archivo usa `console.log` ni `console.error`: todos importan ese logger.
+
+### Niveles
+
+Van del más grave al menos grave. Cada nivel incluye a los más graves que él: con el nivel `info` se muestran `info`, `warning`, `error` y `fatal`.
+
+| Nivel | Cuándo se usa | Ejemplo |
+| --- | --- | --- |
+| `fatal` | Falla crítica: la aplicación no puede seguir | No se puede conectar a MongoDB al arrancar |
+| `error` | Error inesperado del servidor (500) | Falla la base mientras se atiende una petición |
+| `warning` | Error esperado o de negocio (400, 404, 409) | Ruta inexistente, pedido no encontrado, cantidad de mocks inválida |
+| `info` | Eventos normales e importantes | Servidor iniciado, MongoDB conectado, pedido creado |
+| `http` | Cada petición HTTP recibida | `GET /api/users 200 - 12ms` |
+| `debug` | Detalle para desarrollar | Cantidades pedidas al generar datos de prueba |
+
+En Winston el número más bajo es el más grave (`fatal` = 0, `debug` = 5). Por eso `logger.js` define los niveles en ese orden.
+
+### Formato
+
+Cada línea tiene fecha y hora, el nivel entre corchetes y el mensaje:
+
+```txt
+2026-11-04 23:30:12 [info] MongoDB conectado
+2026-11-04 23:30:12 [warning] ROUTE_NOT_FOUND - Ruta no encontrada - GET /api/nada
+2026-11-04 23:30:12 [http] GET /api/nada 404 - 3ms
+```
+
+En la consola el nivel se muestra con color; en el archivo, no.
+
+### Qué se registra
+
+| Evento | Nivel | Dónde |
+| --- | --- | --- |
+| Servidor iniciado y MongoDB conectado | `info` | `server.js`, `config/db.js` |
+| No se pudo iniciar el servidor (por ejemplo, falla la conexión a MongoDB) | `fatal` | `server.js` |
+| Cada petición: método, ruta, status y duración | `http` | `middlewares/requestLogger.js` |
+| Errores esperados: ruta inexistente, recurso no encontrado, cantidad de mocks inválida, email repetido, etc. | `warning` | `middlewares/errorHandler.js` |
+| Error inesperado del servidor y falla al generar datos de prueba | `error` | `middlewares/errorHandler.js`, `services/mocks.service.js` |
+| Pedido creado, entrega creada y datos de prueba generados | `info` | `services` |
+| Cantidades que se piden al generar datos de prueba | `debug` | `services/mocks.service.js` |
+
+El `errorHandler` registra cada error con el formato `CÓDIGO - mensaje - MÉTODO ruta`. Los errores del servidor (500) incluyen además el detalle y el stack del error original, que nunca se envía al cliente. No se registra el body de las peticiones, para no guardar datos sensibles como contraseñas. La respuesta que recibe el cliente es la misma de siempre.
+
+Si el servidor no puede iniciar, `server.js` registra el `fatal` y termina con `process.exitCode = 1` (y no con `process.exit(1)`), para que la línea alcance a escribirse en el archivo antes de que el proceso termine.
+
+### Dónde se guardan los logs
+
+* **Consola:** los niveles habilitados para el entorno (ver más abajo).
+* **Archivo:** `logs/error-AAAA-MM-DD.log`, que guarda **solo** `error` y `fatal`. La carpeta `logs/` se crea sola al arrancar.
+
+### Rotación de archivos
+
+Se usa `winston-daily-rotate-file`: se crea un archivo por día (por ejemplo `error-2026-11-04.log`) y se conservan los últimos 14 días; los más viejos se eliminan solos. Dentro de `logs/` también aparece un archivo `.xxxx-audit.json`, que la librería usa para controlar la rotación.
+
+### Qué ignora Git
+
+El `.gitignore` incluye:
+
+```txt
+logs
+*.log
+```
+
+`logs` ignora la carpeta completa con todo lo que contiene, y `*.log` ignora cualquier archivo `.log` en cualquier lugar del proyecto. Los archivos de log los genera la aplicación y pueden contener detalles internos, así que no se suben al repositorio.
+
+### Comportamiento según el entorno
+
+El nivel mínimo sale de `NODE_ENV`, que se lee a través de `config`:
+
+| `NODE_ENV` | Consola | Archivo |
+| --- | --- | --- |
+| `development` (y cualquier otro valor, salvo `test`) | Desde `debug`: los seis niveles | `error` y `fatal` |
+| `production` | Desde `info`: sin `debug` ni `http` | `error` y `fatal` |
+| `test` (lo define `tests/setup.js`) | Sin salida | No escribe archivos |
+
+### Cómo probar el logger
+
+`GET /loggerTest` genera un log de cada nivel y responde:
+
+```json
+{
+  "status": "success",
+  "message": "Logs generados correctamente"
+}
+```
+
+1. Iniciar el servidor con `NODE_ENV=development` y hacer `GET http://localhost:8080/loggerTest`.
+2. En la consola aparecen las seis líneas de prueba, de `debug` a `fatal`, más la línea `http` de la propia petición.
+3. Se crea `logs/error-<fecha>.log` con **solo** dos líneas: la de `error` y la de `fatal`.
+4. Detener el servidor y volver a iniciarlo en producción (en Git Bash: `NODE_ENV=production npm run dev`; o cambiar `NODE_ENV` en el `.env`). Con la misma petición, la consola muestra solo `info`, `warning`, `error` y `fatal`, y el archivo recibe las mismas dos líneas.
+
+Para ver un `fatal` real, poner una `MONGODB_URI` inválida en el `.env` e iniciar el servidor: registra el error, no arranca y termina con código de error.
 
 ## Autor
 
