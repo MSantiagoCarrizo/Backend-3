@@ -53,7 +53,10 @@ describe('GET /loggerTest', () => {
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { status: 'success', message: 'Logs generados correctamente' });
-    spies.forEach((spy) => assert.equal(spy.mock.callCount(), 1));
+    spies.forEach((spy, i) => {
+      const messages = spy.mock.calls.map((call) => call.arguments[0]);
+      assert.ok(messages.includes(`Log de prueba: ${levels[i]}`));
+    });
   });
 });
 
@@ -112,5 +115,16 @@ describe('Eventos de negocio', () => {
 
     const messages = error.mock.calls.map((call) => call.arguments[0]);
     assert.ok(messages.some((message) => message.includes('falla de MongoDB')));
+  });
+});
+
+describe('Registro de peticiones', () => {
+  test('cada petición se registra con nivel http', async () => {
+    const http = mock.method(logger, 'http', () => { });
+
+    await api.get('/health');
+
+    assert.equal(http.mock.callCount(), 1);
+    assert.match(http.mock.calls[0].arguments[0], /^GET \/health 200 - \d+ms$/);
   });
 });
