@@ -4,6 +4,7 @@ import { storeRepository } from '../repositories/store.repository.js';
 import { ORDER_STATUS, DELIVERY_PRIORITY } from '../constants/index.js';
 import { createError } from '../utils/apiResponse.js';
 import { ERROR_CODES } from '../utils/errorDictionary.js';
+import logger from '../config/logger.js';
 
 export const orderService = {
   getOrders: async () => {
@@ -50,7 +51,10 @@ export const orderService = {
       priority: priority ? priority : DELIVERY_PRIORITY.NORMAL,
     };
 
-    return orderRepository.create(newOrder);
+    const order = await orderRepository.create(newOrder);
+    logger.info(`Pedido creado: ${order._id}`);
+
+    return order;
   },
 
   updateOrderStatus: async (id, status) => {

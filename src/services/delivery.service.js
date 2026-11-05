@@ -4,6 +4,7 @@ import { userRepository } from '../repositories/user.repository.js';
 import { DELIVERY_STATUS, DELIVERY_PRIORITY, USER_ROLES } from '../constants/index.js';
 import { createError } from '../utils/apiResponse.js';
 import { ERROR_CODES } from '../utils/errorDictionary.js';
+import logger from '../config/logger.js';
 
 export const deliveryService = {
   getDeliveries: async () => {
@@ -47,7 +48,10 @@ export const deliveryService = {
       priority: priority ? priority : DELIVERY_PRIORITY.NORMAL,
     };
 
-    return deliveryRepository.create(newDelivery);
+    const delivery = await deliveryRepository.create(newDelivery);
+    logger.info(`Entrega creada: ${delivery._id}`);
+
+    return delivery;
   },
 
   updateDeliveryStatus: async (id, status) => {

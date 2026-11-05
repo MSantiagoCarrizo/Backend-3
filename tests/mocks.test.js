@@ -58,7 +58,6 @@ describe('POST /api/mocks/generateData', () => {
     });
 
     test('si MongoDB falla al insertar responde MOCK_GENERATION_ERROR', async () => {
-        mock.method(console, 'error', () => { });
         mock.method(userRepository, 'insertMany', async () => {
             throw new Error('falla de MongoDB');
         });

@@ -9,6 +9,7 @@ import { deliveryRepository } from '../repositories/delivery.repository.js';
 import { createError } from '../utils/apiResponse.js';
 import { ERROR_CODES } from '../utils/errorDictionary.js';
 import { MOCK_MAX_QUANTITY } from '../constants/index.js';
+import logger from '../config/logger.js';
 
 const DEFAULT_QUANTITY = 10;
 
@@ -35,7 +36,7 @@ const insertOrFail = async (repository, data) => {
     try {
         return await repository.insertMany(data);
     } catch (error) {
-        console.error(error);
+        logger.error(`Error al insertar datos de prueba: ${error.stack || error}`);
         throw createError(ERROR_CODES.MOCK_GENERATION_ERROR);
     }
 };
@@ -43,11 +44,13 @@ const insertOrFail = async (repository, data) => {
 export const mocksService = {
     getMockUsers: (qty) => {
         const quantity = parseAmount(qty, DEFAULT_QUANTITY, 1);
+        logger.debug(`Generando ${quantity} usuarios de prueba`);
         return generateMockUsers(quantity);
     },
 
     getMockOrders: (qty) => {
         const quantity = parseAmount(qty, DEFAULT_QUANTITY, 1);
+        logger.debug(`Generando ${quantity} pedidos de prueba`);
         const fakeCustomerIds = Array.from({ length: quantity }, () => new mongoose.Types.ObjectId());
         const fakeStoreIds = Array.from({ length: quantity }, () => new mongoose.Types.ObjectId());
         return generateMockOrders(fakeCustomerIds, fakeStoreIds, quantity);
@@ -63,6 +66,7 @@ export const mocksService = {
             throw createError(ERROR_CODES.INVALID_MOCK_AMOUNT);
         }
 
+        logger.debug(`generateData: ${users} usuarios, ${drivers} repartidores, ${orders} pedidos, ${deliveries} entregas`);
         const result = { users: 0, drivers: 0, orders: 0, deliveries: 0 };
 
         let createdUsers = [];
@@ -103,6 +107,7 @@ export const mocksService = {
             result.deliveries = createdDeliveries.length;
         }
 
+        logger.info(`Datos de prueba generados: ${result.users} usuarios, ${result.drivers} repartidores, ${result.orders} pedidos, ${result.deliveries} entregas`);
         return result;
     },
 };
