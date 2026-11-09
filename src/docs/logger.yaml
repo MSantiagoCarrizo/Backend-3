@@ -1,0 +1,25 @@
+paths:
+  /loggerTest:
+    get:
+      summary: Probar los niveles del logger
+      description: >
+        Herramienta de validación del logger, no es una funcionalidad de negocio.
+        Genera un log de cada nivel (debug, http, info, warning, error y fatal) para
+        comprobar qué se muestra en la consola y qué se guarda en logs/error-FECHA.log
+        según NODE_ENV. Está en la raíz del servidor, fuera de /api.
+      tags:
+        - Logger
+      responses:
+        "200":
+          description: Logs generados correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Logs generados correctamente
