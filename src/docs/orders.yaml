@@ -1,0 +1,286 @@
+paths:
+  /api/orders:
+    get:
+      summary: Obtener pedidos
+      description: Devuelve todos los pedidos, con el cliente (sin password) y el comercio completos.
+      tags:
+        - Orders
+      responses:
+        "200":
+          description: Lista de pedidos obtenida correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Order'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Crear un pedido
+      description: >
+        Crea un pedido en estado created. El cliente y el comercio tienen que existir.
+        El total lo calcula el servidor (suma de precio por cantidad de cada item).
+        Si no se envía priority, queda como normal.
+      tags:
+        - Orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - customer
+                - store
+                - items
+                - deliveryAddress
+              properties:
+                customer:
+                  type: string
+                  description: ID de un usuario existente
+                  example: 6ac572b60d80a98a1818614c
+                store:
+                  type: string
+                  description: ID de un comercio existente
+                  example: 6ab190978f879b34d94ee1bf
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OrderItem'
+                deliveryAddress:
+                  type: string
+                  example: Av. Siempre Viva 742
+                priority:
+                  type: string
+                  enum: [low, normal, high]
+                  default: normal
+                  example: normal
+      responses:
+        "201":
+          description: Pedido creado correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        $ref: '#/components/schemas/Order'
+        "400":
+          description: Datos inválidos, pedido sin productos, ID inválido o JSON mal formado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                datosInvalidos:
+                  summary: Falta un campo obligatorio o algún dato no es válido
+                  value:
+                    status: error
+                    message: Datos inválidos o faltantes
+                    code: VALIDATION_ERROR
+                sinProductos:
+                  summary: items está vacío o no es una lista
+                  value:
+                    status: error
+                    message: El pedido necesita productos
+                    code: ORDER_ITEMS_REQUIRED
+                idInvalido:
+                  summary: customer o store no tienen un formato de ID válido
+                  value:
+                    status: error
+                    message: ID inválido
+                    code: INVALID_ID
+                jsonInvalido:
+                  summary: El body no es un JSON válido
+                  value:
+                    status: error
+                    message: JSON inválido
+                    code: INVALID_JSON
+        "404":
+          description: El cliente o el comercio no existen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                clienteNoExiste:
+                  summary: No existe un usuario con el ID de customer
+                  value:
+                    status: error
+                    message: Usuario no encontrado
+                    code: USER_NOT_FOUND
+                comercioNoExiste:
+                  summary: No existe un comercio con el ID de store
+                  value:
+                    status: error
+                    message: Comercio no encontrado
+                    code: STORE_NOT_FOUND
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/orders/{oid}:
+    get:
+      summary: Obtener un pedido por ID
+      description: Devuelve el pedido con el cliente (sin password) y el comercio completos.
+      tags:
+        - Orders
+      parameters:
+        - name: oid
+          in: path
+          required: true
+          description: ID del pedido
+          schema:
+            type: string
+            example: 665f4d0a8f9a1b001234abcd
+      responses:
+        "200":
+          description: Pedido obtenido correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        $ref: '#/components/schemas/Order'
+        "400":
+          $ref: '#/components/responses/InvalidId'
+        "404":
+          description: Pedido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Pedido no encontrado
+                code: ORDER_NOT_FOUND
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Eliminar un pedido
+      description: Elimina el pedido y devuelve sus datos.
+      tags:
+        - Orders
+      parameters:
+        - name: oid
+          in: path
+          required: true
+          description: ID del pedido
+          schema:
+            type: string
+            example: 665f4d0a8f9a1b001234abcd
+      responses:
+        "200":
+          description: Pedido eliminado correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        $ref: '#/components/schemas/Order'
+        "400":
+          $ref: '#/components/responses/InvalidId'
+        "404":
+          description: Pedido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Pedido no encontrado
+                code: ORDER_NOT_FOUND
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/orders/{oid}/status:
+    put:
+      summary: Actualizar el estado de un pedido
+      description: Cambia el estado del pedido. Acepta cualquiera de los estados válidos, sin un orden obligatorio.
+      tags:
+        - Orders
+      parameters:
+        - name: oid
+          in: path
+          required: true
+          description: ID del pedido
+          schema:
+            type: string
+            example: 665f4d0a8f9a1b001234abcd
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [created, assigned, picked_up, in_transit, delivered, cancelled]
+                  example: assigned
+      responses:
+        "200":
+          description: Estado actualizado correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        $ref: '#/components/schemas/Order'
+        "400":
+          description: Estado inválido, ID inválido o JSON mal formado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                estadoInvalido:
+                  summary: El estado no existe o no se envió
+                  value:
+                    status: error
+                    message: Estado de pedido inválido
+                    code: INVALID_ORDER_STATUS
+                idInvalido:
+                  summary: El ID de la URL no tiene un formato válido
+                  value:
+                    status: error
+                    message: ID inválido
+                    code: INVALID_ID
+                jsonInvalido:
+                  summary: El body no es un JSON válido
+                  value:
+                    status: error
+                    message: JSON inválido
+                    code: INVALID_JSON
+        "404":
+          description: Pedido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Pedido no encontrado
+                code: ORDER_NOT_FOUND
+        "500":
+          $ref: '#/components/responses/InternalServerError'
