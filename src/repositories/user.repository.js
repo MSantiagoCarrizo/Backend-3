@@ -10,7 +10,9 @@ export const userRepository = {
   },
 
   create: async (userData) => {
-    return UserModel.create(userData);
+    const user = await UserModel.create(userData);
+    user.password = undefined;
+    return user;
   },
 
   insertMany: async (usersData) => {
@@ -25,6 +27,6 @@ export const userRepository = {
   },
 
   delete: async (id) => {
-    return UserModel.findByIdAndDelete(id);
+    return UserModel.findByIdAndDelete(id).select('-password');
   },
 };
