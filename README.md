@@ -2,7 +2,7 @@
 
 API REST para la gestión de logística y envíos. Permite administrar usuarios, comercios, pedidos y entregas, y está construida con Node.js, Express y MongoDB (Mongoose).
 
-El proyecto está organizado en una arquitectura por capas (Controller → Service → Repository), valida su configuración de entorno al arrancar y maneja todos los errores en una capa común, con respuestas uniformes, y registra lo que ocurre con un logger centralizado (Winston).
+El proyecto está organizado en una arquitectura por capas (Controller → Service → Repository), valida su configuración de entorno al arrancar y maneja todos los errores en una capa común, con respuestas uniformes, y registra lo que ocurre con un logger centralizado (Winston). Los endpoints principales están documentados con Swagger (OpenAPI), con documentación interactiva en `/api/docs`.
 
 ## Tecnologías
 
@@ -12,6 +12,7 @@ El proyecto está organizado en una arquitectura por capas (Controller → Servi
 * dotenv, para las variables de entorno
 * cors, para habilitar peticiones desde otros orígenes (por ejemplo, un frontend en otro dominio o puerto)
 * Winston y winston-daily-rotate-file, para el logging y la rotación de los archivos de log
+* swagger-jsdoc y swagger-ui-express, para documentar la API con OpenAPI y mostrarla con Swagger UI
 * nodemon, en desarrollo
 * supertest, para los tests de integración (se ejecutan con el runner de Node, `node --test`)
 
@@ -55,6 +56,8 @@ npm run dev
 Con `npm start` se inicia sin nodemon.
 
 6. Verificar que la API responde abriendo `http://localhost:8080/health`.
+
+7. Abrir la documentación interactiva (Swagger) en `http://localhost:8080/api/docs`. Más detalles en [Documentación con Swagger](#documentación-con-swagger).
 
 ## Variables de entorno
 
@@ -103,6 +106,14 @@ Request → Router → Controller → Service → Repository → Model → Mongo
 │   │   ├── order.controller.js
 │   │   ├── store.controller.js
 │   │   └── user.controller.js
+│   ├── docs/
+│   │   ├── swagger.config.js     Configuración de Swagger: info, servidor local y tags
+│   │   ├── schemas.yaml          Schemas y respuestas reutilizables
+│   │   ├── users.yaml
+│   │   ├── orders.yaml
+│   │   ├── deliveries.yaml
+│   │   ├── mocks.yaml
+│   │   └── logger.yaml
 │   ├── middlewares/
 │   │   ├── errorHandler.js       Middleware global: único lugar que responde los errores
 │   │   ├── notFoundHandler.js    Convierte las rutas inexistentes en un error 404
@@ -228,7 +239,7 @@ Todos los modelos incluyen `createdAt` y `updatedAt`.
 
 ## Endpoints
 
-La URL base en local es `http://localhost:8080`. Los endpoints se pueden probar con Thunder Client, Postman o herramientas similares.
+La URL base en local es `http://localhost:8080`. Los endpoints se pueden probar con Thunder Client, Postman o herramientas similares. Los principales también están documentados en Swagger, desde donde se pueden probar (ver [Documentación con Swagger](#documentación-con-swagger)).
 
 ### General
 
@@ -236,6 +247,7 @@ La URL base en local es `http://localhost:8080`. Los endpoints se pueden probar 
 | --- | --- | --- |
 | GET | `/health` | Verifica que la API está funcionando |
 | GET | `/loggerTest` | Genera un log de cada nivel para probar el logger (está en la raíz, fuera de `/api`; ver [Logging](#logging)) |
+| GET | `/api/docs` | Documentación interactiva de la API con Swagger (ver [Documentación con Swagger](#documentación-con-swagger)) |
 
 ### Users
 
@@ -247,7 +259,7 @@ La URL base en local es `http://localhost:8080`. Los endpoints se pueden probar 
 | PUT | `/api/users/:uid` | Actualiza un usuario |
 | DELETE | `/api/users/:uid` | Elimina un usuario |
 
-Las consultas y actualizaciones de usuarios no incluyen el campo `password`.
+Ninguna respuesta de usuarios incluye el campo `password`.
 
 Ejemplo de body para crear un usuario:
 
@@ -635,6 +647,60 @@ El nivel mínimo sale de `NODE_ENV`, que se lee a través de `config`:
 4. Detener el servidor y volver a iniciarlo en producción (en Git Bash: `NODE_ENV=production npm run dev`; o cambiar `NODE_ENV` en el `.env`). Con la misma petición, la consola muestra solo `info`, `warning`, `error` y `fatal`, y el archivo recibe las mismas dos líneas.
 
 Para ver un `fatal` real, poner una `MONGODB_URI` inválida en el `.env` e iniciar el servidor: registra el error, no arranca y termina con código de error.
+
+## Documentación con Swagger
+
+La API está documentada con OpenAPI 3.0 y se puede consultar y probar desde el navegador con Swagger UI.
+
+**Ruta:** `http://localhost:8080/api/docs` (el puerto es el que se define en `PORT` del `.env`).
+
+### Cómo acceder
+
+1. Iniciar el servidor, como se explica en [Instalación y ejecución](#instalación-y-ejecución).
+2. Abrir `http://localhost:8080/api/docs` en el navegador.
+
+### Qué está documentado
+
+La documentación está agrupada en cinco tags, y cada uno tiene su archivo en `src/docs/`:
+
+| Tag | Endpoints | Archivo |
+| --- | --- | --- |
+| Users | `/api/users`, `/api/users/{uid}` | `users.yaml` |
+| Orders | `/api/orders`, `/api/orders/{oid}`, `/api/orders/{oid}/status` | `orders.yaml` |
+| Deliveries | `/api/deliveries`, `/api/deliveries/{did}`, `/api/deliveries/{did}/status` | `deliveries.yaml` |
+| Mocks | `/api/mocks/mockingusers`, `/api/mocks/mockingorders`, `/api/mocks/generateData` | `mocks.yaml` |
+| Logger | `/loggerTest` | `logger.yaml` |
+
+`/loggerTest` es una herramienta de validación del logger, no una funcionalidad de negocio, y está en la raíz del servidor, fuera de `/api`. Los endpoints de Mocks son herramientas de desarrollo. No están documentados `/api/stores` ni `/health`, que sí figuran en [Endpoints](#endpoints).
+
+De cada endpoint se documenta el método y la ruta, una descripción, los parámetros (de ruta o de query), el body esperado, la respuesta exitosa y los errores posibles, con el `code` real de cada uno. Cuando un mismo status puede corresponder a varios errores, se elige cada uno en un desplegable. Por ejemplo, el 400 de `PUT /api/orders/{oid}/status` puede ser `INVALID_ORDER_STATUS`, `INVALID_ID` o `INVALID_JSON`. La API no tiene autenticación, por eso no hay respuestas 401 ni 403.
+
+Los schemas reutilizables están en `src/docs/schemas.yaml`:
+
+| Schema | Qué describe |
+| --- | --- |
+| `User`, `Order`, `OrderItem`, `Delivery` | Las entidades principales |
+| `Store` | El comercio, que aparece dentro de un pedido cuando se consulta con sus datos completos |
+| `SuccessResponse` | La base de toda respuesta exitosa, `{ status: "success" }`, a la que cada endpoint le suma su `payload` |
+| `ErrorResponse` | La respuesta de error, `{ status, message, code }`, con los códigos de [Manejo de errores](#manejo-de-errores) |
+
+También define dos respuestas reutilizables: `InvalidId` (400, ID con formato inválido) e `InternalServerError` (500).
+
+### Cómo está armada
+
+* `src/docs/swagger.config.js` tiene la configuración general: nombre, versión, descripción, servidor local (`http://localhost:` más el `PORT`) y los tags. Usa `swagger-jsdoc`, que arma la especificación a partir de los archivos `src/docs/**/*.yaml`. Esa ruta es relativa a la carpeta desde donde se inicia el servidor, por lo que hay que usar `npm run dev` o `npm start` desde la raíz del proyecto.
+* `src/app.js` monta Swagger UI en `/api/docs` con `swagger-ui-express`. La ruta va antes de `notFoundHandler`; si estuviera después, respondería `ROUTE_NOT_FOUND`.
+* La configuración de Swagger está separada de las rutas y los controllers, así que no hay documentación mezclada con la lógica de la API.
+
+### Cómo probar los endpoints desde Swagger
+
+En cada endpoint, tocar **Try it out**, completar los datos y tocar **Execute**. Algunas aclaraciones:
+
+* Los IDs de los ejemplos (como `665f4d0a8f9a1b001234abce`) pueden ser ficticios. Si un ID no existe en la base, hay que reemplazarlo por uno real, que se obtiene con los `GET` de cada módulo.
+* Para crear un pedido hacen falta un usuario y un comercio existentes. Los comercios no están en Swagger: se crean y se consultan con `/api/stores` desde Thunder Client o similar.
+* Para crear una entrega hacen falta un pedido y un usuario con `role: "driver"`, que se puede crear con `POST /api/users` o con `generateData`.
+* En los `GET` de Mocks, Swagger UI solo deja enviar `qty` si es un número entero, así que `abc` o `2.5` no se pueden probar desde ahí y se prueban con Thunder Client. En cambio `0`, `-5` y `5000` sí, y devuelven `INVALID_MOCK_AMOUNT` y `MOCK_AMOUNT_TOO_LARGE`.
+* `POST /api/mocks/generateData` guarda datos de prueba en la base. Los `GET` de Mocks no guardan nada.
 
 ## Autor
 
