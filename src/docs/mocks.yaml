@@ -1,0 +1,264 @@
+paths:
+  /api/mocks/mockingusers:
+    get:
+      summary: Generar usuarios mock
+      description: >
+        Herramienta de desarrollo, no es funcionalidad de negocio. Genera usuarios de prueba
+        (todos con role customer) y los devuelve sin guardarlos en la base de datos.
+      tags:
+        - Mocks
+      parameters:
+        - name: qty
+          in: query
+          required: false
+          description: Cantidad de usuarios a generar. Tiene que ser un entero entre 1 y 1000. Si no se envía, son 10.
+          schema:
+            type: integer
+            default: 10
+            example: 5
+      responses:
+        "200":
+          description: Usuarios de prueba generados correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            firstName:
+                              type: string
+                              example: Cliente1
+                            lastName:
+                              type: string
+                              example: Prueba1
+                            email:
+                              type: string
+                              format: email
+                              example: cliente1.k3x9ab@test.com
+                            password:
+                              type: string
+                              example: coder123
+                            role:
+                              type: string
+                              example: customer
+        "400":
+          description: La cantidad no es válida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                cantidadInvalida:
+                  summary: qty no es un entero mayor o igual a 1 (por ejemplo abc, 0, -5 o 2.5)
+                  value:
+                    status: error
+                    message: Cantidad inválida
+                    code: INVALID_MOCK_AMOUNT
+                cantidadMuyGrande:
+                  summary: qty es mayor a 1000
+                  value:
+                    status: error
+                    message: "Cantidad máxima: 1000"
+                    code: MOCK_AMOUNT_TOO_LARGE
+
+  /api/mocks/mockingorders:
+    get:
+      summary: Generar pedidos mock
+      description: >
+        Herramienta de desarrollo, no es funcionalidad de negocio. Genera pedidos de prueba
+        con IDs de cliente y de comercio inventados, y los devuelve sin guardarlos en la base de datos.
+      tags:
+        - Mocks
+      parameters:
+        - name: qty
+          in: query
+          required: false
+          description: Cantidad de pedidos a generar. Tiene que ser un entero entre 1 y 1000. Si no se envía, son 10.
+          schema:
+            type: integer
+            default: 10
+            example: 5
+      responses:
+        "200":
+          description: Pedidos de prueba generados correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            customer:
+                              type: string
+                              example: 665f4d0a8f9a1b001234abce
+                            store:
+                              type: string
+                              example: 665f4d0a8f9a1b001234abc1
+                            items:
+                              type: array
+                              items:
+                                $ref: '#/components/schemas/OrderItem'
+                            deliveryAddress:
+                              type: string
+                              example: Av. Siempre Viva 101
+                            total:
+                              type: number
+                              example: 1000
+                            status:
+                              type: string
+                              example: created
+                            priority:
+                              type: string
+                              example: normal
+        "400":
+          description: La cantidad no es válida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                cantidadInvalida:
+                  summary: qty no es un entero mayor o igual a 1 (por ejemplo abc, 0, -5 o 2.5)
+                  value:
+                    status: error
+                    message: Cantidad inválida
+                    code: INVALID_MOCK_AMOUNT
+                cantidadMuyGrande:
+                  summary: qty es mayor a 1000
+                  value:
+                    status: error
+                    message: "Cantidad máxima: 1000"
+                    code: MOCK_AMOUNT_TOO_LARGE
+
+  /api/mocks/generateData:
+    post:
+      summary: Insertar datos mock en MongoDB
+      description: >
+        Herramienta de desarrollo, no es funcionalidad de negocio. Crea datos de prueba y los
+        guarda en la base de datos. Hay que enviar al menos una cantidad mayor a 0, y cada una
+        tiene que ser un entero entre 0 y 1000. Los pedidos necesitan users en el mismo pedido
+        y al menos un comercio registrado. Las entregas necesitan orders y drivers en el mismo pedido.
+      tags:
+        - Mocks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                users:
+                  type: integer
+                  description: Cantidad de usuarios (role customer) a crear
+                  example: 3
+                drivers:
+                  type: integer
+                  description: Cantidad de repartidores (role driver) a crear
+                  example: 2
+                orders:
+                  type: integer
+                  description: Cantidad de pedidos a crear. Necesita users y al menos un comercio registrado
+                  example: 5
+                deliveries:
+                  type: integer
+                  description: Cantidad de entregas a crear. Necesita orders y drivers
+                  example: 2
+      responses:
+        "201":
+          description: Datos de prueba insertados correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        type: object
+                        description: Cantidad creada de cada tipo
+                        properties:
+                          users:
+                            type: integer
+                            example: 3
+                          drivers:
+                            type: integer
+                            example: 2
+                          orders:
+                            type: integer
+                            example: 5
+                          deliveries:
+                            type: integer
+                            example: 2
+        "400":
+          description: Cantidades inválidas, faltan datos para generar o JSON mal formado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                cantidadInvalida:
+                  summary: Una cantidad no es un entero válido, o no se envió ninguna mayor a 0
+                  value:
+                    status: error
+                    message: Cantidad inválida
+                    code: INVALID_MOCK_AMOUNT
+                cantidadMuyGrande:
+                  summary: Una cantidad es mayor a 1000
+                  value:
+                    status: error
+                    message: "Cantidad máxima: 1000"
+                    code: MOCK_AMOUNT_TOO_LARGE
+                faltanUsuarios:
+                  summary: Se pidieron orders sin users
+                  value:
+                    status: error
+                    message: Faltan usuarios para generar pedidos
+                    code: MOCK_USERS_REQUIRED
+                sinComercios:
+                  summary: Se pidieron orders pero no hay comercios registrados
+                  value:
+                    status: error
+                    message: No hay comercios registrados
+                    code: NO_STORES_AVAILABLE
+                faltanPedidosORepartidores:
+                  summary: Se pidieron deliveries sin orders o sin drivers
+                  value:
+                    status: error
+                    message: Faltan pedidos y repartidores
+                    code: MOCK_DELIVERIES_REQUIRED
+                jsonInvalido:
+                  summary: El body no es un JSON válido
+                  value:
+                    status: error
+                    message: JSON inválido
+                    code: INVALID_JSON
+        "500":
+          description: Error al generar los datos o error inesperado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                errorAlGenerar:
+                  summary: Falló la inserción de los datos en MongoDB
+                  value:
+                    status: error
+                    message: Error al generar los datos
+                    code: MOCK_GENERATION_ERROR
+                errorInesperado:
+                  summary: Error inesperado del servidor
+                  value:
+                    status: error
+                    message: Error interno del servidor
+                    code: INTERNAL_SERVER_ERROR
