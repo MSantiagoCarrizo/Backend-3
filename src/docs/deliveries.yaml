@@ -1,0 +1,282 @@
+paths:
+  /api/deliveries:
+    get:
+      summary: Obtener entregas
+      description: Devuelve todas las entregas, con el pedido completo y el repartidor (sin password).
+      tags:
+        - Deliveries
+      responses:
+        "200":
+          description: Lista de entregas obtenida correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Delivery'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Crear una entrega
+      description: >
+        Crea una entrega en estado assigned. El pedido tiene que existir y el repartidor
+        tiene que ser un usuario con role driver. Si no se envía priority, queda como normal.
+      tags:
+        - Deliveries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - order
+                - driver
+              properties:
+                order:
+                  type: string
+                  description: ID de un pedido existente
+                  example: 665f4d0a8f9a1b001234abcd
+                driver:
+                  type: string
+                  description: ID de un usuario existente con role driver
+                  example: 665f4d0a8f9a1b001234abc3
+                priority:
+                  type: string
+                  enum: [low, normal, high]
+                  default: normal
+                  example: normal
+                notes:
+                  type: string
+                  example: Tocar el timbre dos veces
+      responses:
+        "201":
+          description: Entrega creada correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        $ref: '#/components/schemas/Delivery'
+        "400":
+          description: Datos inválidos, ID inválido, usuario que no es repartidor o JSON mal formado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                datosInvalidos:
+                  summary: Falta order o driver, o algún dato no es válido
+                  value:
+                    status: error
+                    message: Datos inválidos o faltantes
+                    code: VALIDATION_ERROR
+                idInvalido:
+                  summary: order o driver no tienen un formato de ID válido
+                  value:
+                    status: error
+                    message: ID inválido
+                    code: INVALID_ID
+                noEsRepartidor:
+                  summary: El usuario de driver no tiene role driver
+                  value:
+                    status: error
+                    message: El usuario no es repartidor
+                    code: INVALID_DRIVER_ROLE
+                jsonInvalido:
+                  summary: El body no es un JSON válido
+                  value:
+                    status: error
+                    message: JSON inválido
+                    code: INVALID_JSON
+        "404":
+          description: El pedido o el repartidor no existen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                pedidoNoExiste:
+                  summary: No existe un pedido con el ID de order
+                  value:
+                    status: error
+                    message: Pedido no encontrado
+                    code: ORDER_NOT_FOUND
+                repartidorNoExiste:
+                  summary: No existe un usuario con el ID de driver
+                  value:
+                    status: error
+                    message: Repartidor no encontrado
+                    code: DRIVER_NOT_FOUND
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/deliveries/{did}:
+    get:
+      summary: Obtener una entrega por ID
+      description: Devuelve la entrega con el pedido completo y el repartidor (sin password).
+      tags:
+        - Deliveries
+      parameters:
+        - name: did
+          in: path
+          required: true
+          description: ID de la entrega
+          schema:
+            type: string
+            example: 665f4d0a8f9a1b001234abc2
+      responses:
+        "200":
+          description: Entrega obtenida correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        $ref: '#/components/schemas/Delivery'
+        "400":
+          $ref: '#/components/responses/InvalidId'
+        "404":
+          description: Entrega no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Entrega no encontrada
+                code: DELIVERY_NOT_FOUND
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Eliminar una entrega
+      description: Elimina la entrega y devuelve sus datos.
+      tags:
+        - Deliveries
+      parameters:
+        - name: did
+          in: path
+          required: true
+          description: ID de la entrega
+          schema:
+            type: string
+            example: 665f4d0a8f9a1b001234abc2
+      responses:
+        "200":
+          description: Entrega eliminada correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        $ref: '#/components/schemas/Delivery'
+        "400":
+          $ref: '#/components/responses/InvalidId'
+        "404":
+          description: Entrega no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Entrega no encontrada
+                code: DELIVERY_NOT_FOUND
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/deliveries/{did}/status:
+    put:
+      summary: Actualizar el estado de una entrega
+      description: >
+        Cambia el estado de la entrega. Los estados válidos son assigned, in_transit,
+        delivered y cancelled, y no hay un orden obligatorio. Los estados de una entrega
+        no son los mismos que los de un pedido: por ejemplo, picked_up no es válido acá.
+      tags:
+        - Deliveries
+      parameters:
+        - name: did
+          in: path
+          required: true
+          description: ID de la entrega
+          schema:
+            type: string
+            example: 665f4d0a8f9a1b001234abc2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [assigned, in_transit, delivered, cancelled]
+                  example: in_transit
+      responses:
+        "200":
+          description: Estado actualizado correctamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        $ref: '#/components/schemas/Delivery'
+        "400":
+          description: Estado inválido, ID inválido o JSON mal formado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                estadoInvalido:
+                  summary: El estado no existe o no se envió
+                  value:
+                    status: error
+                    message: Estado de entrega inválido
+                    code: INVALID_DELIVERY_STATUS
+                idInvalido:
+                  summary: El ID de la URL no tiene un formato válido
+                  value:
+                    status: error
+                    message: ID inválido
+                    code: INVALID_ID
+                jsonInvalido:
+                  summary: El body no es un JSON válido
+                  value:
+                    status: error
+                    message: JSON inválido
+                    code: INVALID_JSON
+        "404":
+          description: Entrega no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Entrega no encontrada
+                code: DELIVERY_NOT_FOUND
+        "500":
+          $ref: '#/components/responses/InternalServerError'
