@@ -1,12 +1,10 @@
-import { describe, test, afterEach, mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { mock } from 'node:test';
+import { expect } from 'chai';
 import { api, assertError } from './helpers.js';
 import { userRepository } from '../src/repositories/user.repository.js';
 
-afterEach(() => mock.restoreAll());
-
 describe('Ruta inexistente', () => {
-    test('GET /api/nada responde ROUTE_NOT_FOUND', async () => {
+    it('GET /api/nada responde ROUTE_NOT_FOUND', async () => {
         const res = await api.get('/api/nada');
 
         assertError(res, 404, 'ROUTE_NOT_FOUND');
@@ -14,7 +12,7 @@ describe('Ruta inexistente', () => {
 });
 
 describe('Errores que no son nuestros se traducen al formato unificado', () => {
-    test('JSON mal formado responde INVALID_JSON', async () => {
+    it('JSON mal formado responde INVALID_JSON', async () => {
         const res = await api
             .post('/api/users')
             .set('Content-Type', 'application/json')
@@ -23,13 +21,13 @@ describe('Errores que no son nuestros se traducen al formato unificado', () => {
         assertError(res, 400, 'INVALID_JSON');
     });
 
-    test('ID con formato incorrecto responde INVALID_ID (CastError de Mongoose)', async () => {
+    it('ID con formato incorrecto responde INVALID_ID (CastError de Mongoose)', async () => {
         const res = await api.get('/api/users/abc');
 
         assertError(res, 400, 'INVALID_ID');
     });
 
-    test('Usuario sin datos responde VALIDATION_ERROR (ValidationError de Mongoose)', async () => {
+    it('Usuario sin datos responde VALIDATION_ERROR (ValidationError de Mongoose)', async () => {
         const res = await api.post('/api/users').send({});
 
         assertError(res, 400, 'VALIDATION_ERROR');
@@ -42,7 +40,7 @@ describe('Error 11000 de Mongo (valor repetido en un campo único)', () => {
 
     const postUser = () => api.post('/api/users').send({ email: 'ana@mail.com' });
 
-    test('si el campo repetido es email responde EMAIL_ALREADY_EXISTS', async () => {
+    it('si el campo repetido es email responde EMAIL_ALREADY_EXISTS', async () => {
         mock.method(userRepository, 'create', async () => {
             throw duplicateKeyError({ email: 1 });
         });
@@ -50,7 +48,7 @@ describe('Error 11000 de Mongo (valor repetido en un campo único)', () => {
         assertError(await postUser(), 409, 'EMAIL_ALREADY_EXISTS');
     });
 
-    test('si el campo repetido es otro responde DUPLICATE_KEY', async () => {
+    it('si el campo repetido es otro responde DUPLICATE_KEY', async () => {
         mock.method(userRepository, 'create', async () => {
             throw duplicateKeyError({ dni: 1 });
         });
@@ -58,7 +56,7 @@ describe('Error 11000 de Mongo (valor repetido en un campo único)', () => {
         assertError(await postUser(), 409, 'DUPLICATE_KEY');
     });
 
-    test('si el error no trae keyPattern responde DUPLICATE_KEY', async () => {
+    it('si el error no trae keyPattern responde DUPLICATE_KEY', async () => {
         mock.method(userRepository, 'create', async () => {
             throw duplicateKeyError(undefined);
         });
@@ -68,7 +66,7 @@ describe('Error 11000 de Mongo (valor repetido en un campo único)', () => {
 });
 
 describe('Error inesperado', () => {
-    test('responde INTERNAL_SERVER_ERROR con el formato unificado y sin mostrar el detalle', async () => {
+    it('responde INTERNAL_SERVER_ERROR con el formato unificado y sin mostrar el detalle', async () => {
         mock.method(userRepository, 'findAll', async () => {
             throw new Error('detalle interno que no debe llegar al cliente');
         });
@@ -76,6 +74,6 @@ describe('Error inesperado', () => {
         const res = await api.get('/api/users');
 
         assertError(res, 500, 'INTERNAL_SERVER_ERROR');
-        assert.ok(!JSON.stringify(res.body).includes('detalle interno'));
+        expect(JSON.stringify(res.body)).to.not.include('detalle interno');
     });
 });

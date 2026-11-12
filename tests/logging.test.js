@@ -1,5 +1,5 @@
-import { describe, test, afterEach, mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { mock } from 'node:test';
+import { expect } from 'chai';
 import { api } from './helpers.js';
 import logger from '../src/config/logger.js';
 import { userRepository } from '../src/repositories/user.repository.js';
@@ -7,28 +7,25 @@ import { storeRepository } from '../src/repositories/store.repository.js';
 import { orderRepository } from '../src/repositories/order.repository.js';
 import { deliveryRepository } from '../src/repositories/delivery.repository.js';
 
-afterEach(() => mock.restoreAll());
-
 const spyLogger = () => ({
   warning: mock.method(logger, 'warning', () => { }),
   error: mock.method(logger, 'error', () => { }),
 });
 
 describe('El errorHandler registra los errores', () => {
-  test('un error esperado se registra como warning', async () => {
+  it('un error esperado se registra como warning', async () => {
     const spy = spyLogger();
 
     await api.get('/api/nada');
 
-    assert.equal(spy.warning.mock.callCount(), 1);
-    assert.equal(
-      spy.warning.mock.calls[0].arguments[0],
+    expect(spy.warning.mock.callCount()).to.equal(1);
+    expect(spy.warning.mock.calls[0].arguments[0]).to.equal(
       'ROUTE_NOT_FOUND - Ruta no encontrada - GET /api/nada'
     );
-    assert.equal(spy.error.mock.callCount(), 0);
+    expect(spy.error.mock.callCount()).to.equal(0);
   });
 
-  test('un error inesperado se registra como error, con el detalle original', async () => {
+  it('un error inesperado se registra como error, con el detalle original', async () => {
     const spy = spyLogger();
     mock.method(userRepository, 'findAll', async () => {
       throw new Error('detalle interno');
@@ -36,26 +33,26 @@ describe('El errorHandler registra los errores', () => {
 
     await api.get('/api/users');
 
-    assert.equal(spy.error.mock.callCount(), 1);
+    expect(spy.error.mock.callCount()).to.equal(1);
     const message = spy.error.mock.calls[0].arguments[0];
-    assert.ok(message.startsWith('INTERNAL_SERVER_ERROR - Error interno del servidor - GET /api/users'));
-    assert.ok(message.includes('detalle interno'));
-    assert.equal(spy.warning.mock.callCount(), 0);
+    expect(message).to.match(/^INTERNAL_SERVER_ERROR - Error interno del servidor - GET \/api\/users/);
+    expect(message).to.include('detalle interno');
+    expect(spy.warning.mock.callCount()).to.equal(0);
   });
 });
 
 describe('GET /loggerTest', () => {
-  test('responde 200 y genera un log de cada nivel', async () => {
+  it('responde 200 y genera un log de cada nivel', async () => {
     const levels = ['debug', 'http', 'info', 'warning', 'error', 'fatal'];
     const spies = levels.map((level) => mock.method(logger, level, () => { }));
 
     const res = await api.get('/loggerTest');
 
-    assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { status: 'success', message: 'Logs generados correctamente' });
+    expect(res.status).to.equal(200);
+    expect(res.body).to.deep.equal({ status: 'success', message: 'Logs generados correctamente' });
     spies.forEach((spy, i) => {
       const messages = spy.mock.calls.map((call) => call.arguments[0]);
-      assert.ok(messages.includes(`Log de prueba: ${levels[i]}`));
+      expect(messages).to.include(`Log de prueba: ${levels[i]}`);
     });
   });
 });
@@ -63,7 +60,7 @@ describe('GET /loggerTest', () => {
 describe('Eventos de negocio', () => {
   const ID = '64b000000000000000000000';
 
-  test('crear un pedido registra info con su id', async () => {
+  it('crear un pedido registra info con su id', async () => {
     const info = mock.method(logger, 'info', () => { });
     mock.method(userRepository, 'findById', async () => ({ _id: ID }));
     mock.method(storeRepository, 'findById', async () => ({ _id: ID }));
@@ -76,11 +73,11 @@ describe('Eventos de negocio', () => {
       deliveryAddress: 'Calle 123',
     });
 
-    assert.equal(res.status, 201);
-    assert.equal(info.mock.calls[0].arguments[0], 'Pedido creado: pedido1');
+    expect(res.status).to.equal(201);
+    expect(info.mock.calls[0].arguments[0]).to.equal('Pedido creado: pedido1');
   });
 
-  test('crear una entrega registra info con su id', async () => {
+  it('crear una entrega registra info con su id', async () => {
     const info = mock.method(logger, 'info', () => { });
     mock.method(orderRepository, 'findById', async () => ({ _id: ID }));
     mock.method(userRepository, 'findById', async () => ({ _id: ID, role: 'driver' }));
@@ -88,24 +85,23 @@ describe('Eventos de negocio', () => {
 
     const res = await api.post('/api/deliveries').send({ order: ID, driver: ID });
 
-    assert.equal(res.status, 201);
-    assert.equal(info.mock.calls[0].arguments[0], 'Entrega creada: entrega1');
+    expect(res.status).to.equal(201);
+    expect(info.mock.calls[0].arguments[0]).to.equal('Entrega creada: entrega1');
   });
 
-  test('generateData registra info con las cantidades creadas', async () => {
+  it('generateData registra info con las cantidades creadas', async () => {
     const info = mock.method(logger, 'info', () => { });
     mock.method(userRepository, 'insertMany', async (users) => users.map((user, i) => ({ ...user, _id: i })));
 
     const res = await api.post('/api/mocks/generateData').send({ users: 2 });
 
-    assert.equal(res.status, 201);
-    assert.equal(
-      info.mock.calls[0].arguments[0],
+    expect(res.status).to.equal(201);
+    expect(info.mock.calls[0].arguments[0]).to.equal(
       'Datos de prueba generados: 2 usuarios, 0 repartidores, 0 pedidos, 0 entregas'
     );
   });
 
-  test('si MongoDB falla al insertar, registra error con la causa', async () => {
+  it('si MongoDB falla al insertar, registra error con la causa', async () => {
     const error = mock.method(logger, 'error', () => { });
     mock.method(userRepository, 'insertMany', async () => {
       throw new Error('falla de MongoDB');
@@ -114,17 +110,17 @@ describe('Eventos de negocio', () => {
     await api.post('/api/mocks/generateData').send({ users: 2 });
 
     const messages = error.mock.calls.map((call) => call.arguments[0]);
-    assert.ok(messages.some((message) => message.includes('falla de MongoDB')));
+    expect(messages.some((message) => message.includes('falla de MongoDB'))).to.equal(true);
   });
 });
 
 describe('Registro de peticiones', () => {
-  test('cada petición se registra con nivel http', async () => {
+  it('cada petición se registra con nivel http', async () => {
     const http = mock.method(logger, 'http', () => { });
 
     await api.get('/health');
 
-    assert.equal(http.mock.callCount(), 1);
-    assert.match(http.mock.calls[0].arguments[0], /^GET \/health 200 - \d+ms$/);
+    expect(http.mock.callCount()).to.equal(1);
+    expect(http.mock.calls[0].arguments[0]).to.match(/^GET \/health 200 - \d+ms$/);
   });
 });
