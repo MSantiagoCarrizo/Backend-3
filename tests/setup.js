@@ -22,9 +22,29 @@ if (!databaseName.endsWith('test')) {
     );
 }
 
-mongoose.set('bufferCommands', false);
+export const clearDatabase = async () => {
+    await Promise.all(Object.values(mongoose.models).map((model) => model.deleteMany({})));
+};
 
 export const mochaHooks = {
+    async beforeAll() {
+        try {
+            await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+        } catch (error) {
+            throw new Error(`No se pudo conectar a la base de testing: ${error.message}`);
+        }
+
+        await Promise.all(Object.values(mongoose.models).map((model) => model.init()));
+        await clearDatabase();
+    },
+
+    async afterAll() {
+        if (mongoose.connection.readyState !== 1) return;
+
+        await clearDatabase();
+        await mongoose.disconnect();
+    },
+
     afterEach() {
         mock.restoreAll();
     },

@@ -2,5 +2,7 @@
     "spec": "tests/**/*.test.js",
     "require": [
         "tests/setup.js"
-    ]
+    ],
+    "timeout": 15000,
+    "exit": true
 }
