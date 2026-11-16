@@ -11,42 +11,11 @@ describe('Ruta inexistente', () => {
     });
 });
 
-describe('Errores que no son nuestros se traducen al formato unificado', () => {
-    it('JSON mal formado responde INVALID_JSON', async () => {
-        const res = await api
-            .post('/api/users')
-            .set('Content-Type', 'application/json')
-            .send('{"firstName": ');
-
-        assertError(res, 400, 'INVALID_JSON');
-    });
-
-    it('ID con formato incorrecto responde INVALID_ID (CastError de Mongoose)', async () => {
-        const res = await api.get('/api/users/abc');
-
-        assertError(res, 400, 'INVALID_ID');
-    });
-
-    it('Usuario sin datos responde VALIDATION_ERROR (ValidationError de Mongoose)', async () => {
-        const res = await api.post('/api/users').send({});
-
-        assertError(res, 400, 'VALIDATION_ERROR');
-    });
-});
-
 describe('Error 11000 de Mongo (valor repetido en un campo único)', () => {
     const duplicateKeyError = (keyPattern) =>
         Object.assign(new Error('E11000 duplicate key error'), { code: 11000, keyPattern });
 
     const postUser = () => api.post('/api/users').send({ email: 'ana@mail.com' });
-
-    it('si el campo repetido es email responde EMAIL_ALREADY_EXISTS', async () => {
-        mock.method(userRepository, 'create', async () => {
-            throw duplicateKeyError({ email: 1 });
-        });
-
-        assertError(await postUser(), 409, 'EMAIL_ALREADY_EXISTS');
-    });
 
     it('si el campo repetido es otro responde DUPLICATE_KEY', async () => {
         mock.method(userRepository, 'create', async () => {

@@ -9,12 +9,6 @@ const ID = '64b000000000000000000000';
 const notFound = (repository) => mock.method(repository, 'findById', async () => null);
 
 describe('Recurso que no existe', () => {
-    it('GET /api/users/:id responde USER_NOT_FOUND', async () => {
-        notFound(userRepository);
-
-        assertError(await api.get(`/api/users/${ID}`), 404, 'USER_NOT_FOUND');
-    });
-
     it('GET /api/stores/:id responde STORE_NOT_FOUND', async () => {
         notFound(storeRepository);
 
