@@ -64,8 +64,35 @@ export const createOrder = async (orderData = {}) => {
     return { customer, store, order: res.body.payload };
 };
 
+export const createDriver = async () => {
+    return createUser({ email: 'repartidor@test.com', firstName: 'Maria', role: 'driver' });
+};
+
+export const validDelivery = (orderId, driverId, deliveryData = {}) => ({
+    order: orderId,
+    driver: driverId,
+    ...deliveryData,
+});
+
+export const createOrderAndDriver = async () => {
+    const { order } = await createOrder();
+    const driver = await createDriver();
+
+    return { order, driver };
+};
+
+export const createDelivery = async (deliveryData = {}) => {
+    const { order, driver } = await createOrderAndDriver();
+    const res = await api.post('/api/deliveries').send(validDelivery(order._id, driver._id, deliveryData));
+
+    expect(res.status).to.equal(201);
+    return { order, driver, delivery: res.body.payload };
+};
+
 export const USER_KEYS = ['_id', 'firstName', 'lastName', 'email', 'role', 'documents', 'createdAt', 'updatedAt'];
 export const STORE_KEYS = ['_id', 'name', 'address', 'owner', 'isActive', 'createdAt', 'updatedAt'];
+export const ORDER_KEYS = ['_id', 'customer', 'store', 'items', 'deliveryAddress', 'total', 'status', 'priority', 'proof', 'createdAt', 'updatedAt',];
+export const DELIVERY_KEYS = ['_id', 'order', 'driver', 'status', 'priority', 'notes', 'createdAt', 'updatedAt'];
 
 const expectIsoDate = (value) => {
     expect(new Date(value).toISOString()).to.equal(value);
@@ -86,4 +113,22 @@ export const expectStore = (store, expected = {}) => {
     expectIsoDate(store.createdAt);
     expectIsoDate(store.updatedAt);
     expect(store).to.include(expected);
+};
+
+export const expectOrder = (order, expected = {}) => {
+    expect(order).to.have.all.keys(ORDER_KEYS);
+    expect(order._id).to.match(/^[a-f0-9]{24}$/);
+    expect(order.items).to.be.an('array').that.is.not.empty;
+    expect(order.proof).to.equal(null);
+    expectIsoDate(order.createdAt);
+    expectIsoDate(order.updatedAt);
+    expect(order).to.include(expected);
+};
+
+export const expectDelivery = (delivery, expected = {}) => {
+    expect(delivery).to.have.all.keys(DELIVERY_KEYS);
+    expect(delivery._id).to.match(/^[a-f0-9]{24}$/);
+    expectIsoDate(delivery.createdAt);
+    expectIsoDate(delivery.updatedAt);
+    expect(delivery).to.include(expected);
 };

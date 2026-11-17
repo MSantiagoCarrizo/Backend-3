@@ -6,6 +6,7 @@ import {
     createOrder,
     createCustomerAndStore,
     validOrder,
+    expectOrder,
     expectUser,
     expectStore,
     NON_EXISTENT_ID,
@@ -14,22 +15,6 @@ import { clearDatabase } from './setup.js';
 import { orderRepository } from '../src/repositories/order.repository.js';
 import { ORDER_STATUS } from '../src/constants/index.js';
 
-const ORDER_KEYS = [
-    '_id', 'customer', 'store', 'items', 'deliveryAddress', 'total', 'status', 'priority', 'proof', 'createdAt', 'updatedAt',
-];
-
-// Un pedido recién creado, con el cliente y el comercio como IDs
-const expectOrder = (order, expected = {}) => {
-    expect(order).to.have.all.keys(ORDER_KEYS);
-    expect(order._id).to.match(/^[a-f0-9]{24}$/);
-    expect(order.items).to.be.an('array').that.is.not.empty;
-    expect(order.proof).to.equal(null);
-    expect(new Date(order.createdAt).toISOString()).to.equal(order.createdAt);
-    expect(new Date(order.updatedAt).toISOString()).to.equal(order.updatedAt);
-    expect(order).to.include(expected);
-};
-
-// Un pedido consultado con GET: trae el cliente (sin password) y el comercio completos
 const expectPopulatedOrder = (order, customer, store) => {
     expectOrder({ ...order, customer: customer._id, store: store._id });
     expectUser(order.customer, { _id: customer._id });
