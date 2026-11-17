@@ -1,20 +1,8 @@
 import { mock } from 'node:test';
 import { expect } from 'chai';
-import { api, assertError, createUser, validUser, NON_EXISTENT_ID } from './helpers.js';
+import { api, assertError, createUser, validUser, expectUser, NON_EXISTENT_ID } from './helpers.js';
 import { clearDatabase } from './setup.js';
 import { userRepository } from '../src/repositories/user.repository.js';
-
-const USER_KEYS = ['_id', 'firstName', 'lastName', 'email', 'role', 'documents', 'createdAt', 'updatedAt'];
-
-// Un usuario nunca trae el password, así que tiene que tener exactamente estas propiedades
-const expectUser = (user, expected = {}) => {
-    expect(user).to.have.all.keys(USER_KEYS);
-    expect(user._id).to.match(/^[a-f0-9]{24}$/);
-    expect(user.documents).to.deep.equal([]);
-    expect(new Date(user.createdAt).toISOString()).to.equal(user.createdAt);
-    expect(new Date(user.updatedAt).toISOString()).to.equal(user.updatedAt);
-    expect(user).to.include(expected);
-};
 
 const failWith = (method) =>
     mock.method(userRepository, method, async () => {

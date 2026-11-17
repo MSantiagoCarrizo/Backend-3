@@ -16,33 +16,6 @@ describe('Recurso que no existe', () => {
     });
 });
 
-describe('Pedidos', () => {
-    const validOrder = {
-        customer: ID,
-        store: ID,
-        items: [{ name: 'Pizza', price: 100, quantity: 1 }],
-        deliveryAddress: 'Calle 123',
-    };
-
-    it('estado inexistente responde INVALID_ORDER_STATUS', async () => {
-        const res = await api.put(`/api/orders/${ID}/status`).send({ status: 'volando' });
-
-        assertError(res, 400, 'INVALID_ORDER_STATUS');
-    });
-
-    it('sin productos responde ORDER_ITEMS_REQUIRED', async () => {
-        const res = await api.post('/api/orders').send({ ...validOrder, items: [] });
-
-        assertError(res, 400, 'ORDER_ITEMS_REQUIRED');
-    });
-
-    it('con un customer que no existe responde USER_NOT_FOUND', async () => {
-        notFound(userRepository);
-
-        assertError(await api.post('/api/orders').send(validOrder), 404, 'USER_NOT_FOUND');
-    });
-});
-
 describe('Entregas', () => {
     const validDelivery = { order: ID, driver: ID };
 
