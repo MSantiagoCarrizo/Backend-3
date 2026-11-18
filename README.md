@@ -2,7 +2,7 @@
 
 API REST para la gestión de logística y envíos. Permite administrar usuarios, comercios, pedidos y entregas, y está construida con Node.js, Express y MongoDB (Mongoose).
 
-El proyecto está organizado en una arquitectura por capas (Controller → Service → Repository), valida su configuración de entorno al arrancar y maneja todos los errores en una capa común, con respuestas uniformes, y registra lo que ocurre con un logger centralizado (Winston). Los endpoints principales están documentados con Swagger (OpenAPI), con documentación interactiva en `/api/docs`. Cuenta con una suite de tests funcionales (Mocha, Chai y Supertest) que se ejecuta con `npm test`, como se explica en [Testing](#testing).
+El proyecto está organizado en una arquitectura por capas (Controller → Service → Repository), valida su configuración de entorno al arrancar y maneja todos los errores en una capa común, con respuestas uniformes, y registra lo que ocurre con un logger centralizado (Winston). Los endpoints principales están documentados con Swagger (OpenAPI), con documentación interactiva en `/api/docs`. Cuenta con una suite de tests funcionales (Mocha, Chai y Supertest) que se ejecuta con `npm test`, como se explica en [Testing](#testing). También permite cargar archivos (documentos de usuario y comprobantes de pedido) con Multer, guardándolos en disco y dejando solo su metadata en la base, como se explica en [Carga de archivos](#carga-de-archivos).
 
 ## Tecnologías
 
@@ -13,6 +13,7 @@ El proyecto está organizado en una arquitectura por capas (Controller → Servi
 * cors, para habilitar peticiones desde otros orígenes (por ejemplo, un frontend en otro dominio o puerto)
 * Winston y winston-daily-rotate-file, para el logging y la rotación de los archivos de log
 * swagger-jsdoc y swagger-ui-express, para documentar la API con OpenAPI y mostrarla con Swagger UI
+* Multer, para recibir archivos (`multipart/form-data`) y guardarlos en disco
 * nodemon, en desarrollo
 * Mocha, Chai y supertest, para los tests funcionales (ver [Testing](#testing))
 
@@ -119,7 +120,8 @@ Request → Router → Controller → Service → Repository → Model → Mongo
 │   ├── middlewares/
 │   │   ├── errorHandler.js       Middleware global: único lugar que responde los errores
 │   │   ├── notFoundHandler.js    Convierte las rutas inexistentes en un error 404
-│   │   └── requestLogger.js      Registra cada petición HTTP (nivel http)
+│   │   ├── requestLogger.js      Registra cada petición HTTP (nivel http)
+│   │   └── upload.middleware.js  Configuración central de Multer y errores de carga
 │   ├── mocks/
 │   │   ├── user.mock.js          Genera usuarios y repartidores de prueba
 │   │   ├── order.mock.js         Genera pedidos de prueba
@@ -149,7 +151,8 @@ Request → Router → Controller → Service → Repository → Model → Mongo
 │   │   └── user.service.js
 │   ├── utils/
 │   │   ├── errorDictionary.js    Códigos de error, con su status y su mensaje
-│   │   └── apiResponse.js        createError y errorResponse
+│   │   ├── apiResponse.js        createError y errorResponse
+│   │   └── files.js              Metadata de los archivos cargados y borrado de archivos
 │   ├── app.js                    Configuración de Express y montaje de rutas
 │   └── server.js                 Punto de entrada: conecta la base y levanta el servidor
 └── tests/
@@ -163,6 +166,7 @@ Request → Router → Controller → Service → Repository → Model → Mongo
     ├── swagger.test.js           Ruta de Swagger y coherencia con la documentación
     ├── logging.test.js           Logs de errores, eventos, peticiones y /loggerTest
     ├── errors.test.js            Ruta inexistente, error 11000 y error inesperado
+    ├── uploads.test.js           Carga de archivos: documentos de usuario y comprobantes de pedido
     └── entorno.test.js           Conexión a la base de testing, /health y limpieza
 ```
 
@@ -189,7 +193,7 @@ Con esta separación, si cambia una regla, como el cálculo del total, se toca s
 
 ## Constantes del dominio
 
-Los valores fijos del negocio están centralizados en `src/constants/index.js` como objetos congelados con `Object.freeze` (más un límite numérico, `MOCK_MAX_QUANTITY`). Los modelos y los services los usan en lugar de escribir strings sueltos.
+Los valores fijos del negocio están centralizados en `src/constants/index.js` como objetos congelados con `Object.freeze` (más dos límites numéricos, `MOCK_MAX_QUANTITY` y `MAX_FILE_SIZE`). Los modelos y los services los usan en lugar de escribir strings sueltos.
 
 | Constante | Valores |
 | --- | --- |
@@ -198,6 +202,11 @@ Los valores fijos del negocio están centralizados en `src/constants/index.js` c
 | `DELIVERY_PRIORITY` | `low`, `normal`, `high` |
 | `DELIVERY_STATUS` | `assigned`, `in_transit`, `delivered`, `cancelled` |
 | `MOCK_MAX_QUANTITY` | `1000`: cantidad máxima de cada tipo de dato que pueden generar los mocks |
+| `DOCUMENT_TYPES` | `user_document`, `driver_license`, `delivery_proof` |
+| `USER_DOCUMENT_TYPES` | `user_document`, `driver_license`: los tipos que se pueden cargar en un usuario |
+| `UPLOAD_FOLDERS` | `uploads/documents` (documentos de usuario) y `uploads/proofs` (comprobantes de pedido) |
+| `ALLOWED_FILE_TYPES` | Tipos de archivo permitidos, con la extensión con la que se guardan: `application/pdf` (`.pdf`), `image/jpeg` (`.jpg`), `image/png` (`.png`) y `image/webp` (`.webp`) |
+| `MAX_FILE_SIZE` | `5 * 1024 * 1024`: tamaño máximo de un archivo, en bytes (5 MB) |
 
 ## Modelo de datos
 
@@ -209,7 +218,7 @@ Los valores fijos del negocio están centralizados en `src/constants/index.js` c
 | `email` | String | Obligatorio y único |
 | `password` | String | Obligatorio |
 | `role` | String | Uno de `USER_ROLES`, por defecto `customer` |
-| `documents` | Array | Por defecto vacío |
+| `documents` | Array | Metadata de los documentos cargados. Por defecto vacío |
 
 ### Store
 
@@ -230,7 +239,7 @@ Los valores fijos del negocio están centralizados en `src/constants/index.js` c
 | `total` | Number | Calculado por el Service |
 | `status` | String | Uno de `ORDER_STATUS`, por defecto `created` |
 | `priority` | String | Uno de `DELIVERY_PRIORITY`, por defecto `normal` |
-| `proof` | Object | Por defecto `null` |
+| `proof` | Object | Metadata del comprobante de entrega. Por defecto `null` |
 
 ### Delivery
 
@@ -246,7 +255,7 @@ Todos los modelos incluyen `createdAt` y `updatedAt`.
 
 ## Endpoints
 
-La URL base en local es `http://localhost:8080`. Los endpoints se pueden probar con Thunder Client, Postman o herramientas similares. Los principales también están documentados en Swagger, desde donde se pueden probar (ver [Documentación con Swagger](#documentación-con-swagger)).
+La URL base en local es `http://localhost:8080`. Los endpoints se pueden probar con Thunder Client, Postman o herramientas similares. Los principales también están documentados en Swagger, desde donde se pueden probar (ver [Documentación con Swagger](#documentación-con-swagger)). Los dos que cargan archivos (`POST /api/users/:uid/documents` y `POST /api/orders/:oid/proof`) usan `multipart/form-data` y se explican en [Carga de archivos](#carga-de-archivos).
 
 ### General
 
@@ -265,6 +274,7 @@ La URL base en local es `http://localhost:8080`. Los endpoints se pueden probar 
 | POST | `/api/users` | Crea un usuario |
 | PUT | `/api/users/:uid` | Actualiza un usuario |
 | DELETE | `/api/users/:uid` | Elimina un usuario |
+| POST | `/api/users/:uid/documents` | Carga un documento del usuario |
 
 Ninguna respuesta de usuarios incluye el campo `password`.
 
@@ -308,6 +318,7 @@ Ejemplo de body para crear un comercio:
 | POST | `/api/orders` | Crea un pedido |
 | PUT | `/api/orders/:oid/status` | Actualiza el estado de un pedido |
 | DELETE | `/api/orders/:oid` | Elimina un pedido |
+| POST | `/api/orders/:oid/proof` | Carga el comprobante de entrega del pedido |
 
 Al crear un pedido, el Service:
 
@@ -409,6 +420,87 @@ Respuesta esperada:
 }
 ```
 
+## Carga de archivos
+
+La API recibe archivos con [Multer](https://github.com/expressjs/multer), un middleware que lee las peticiones `multipart/form-data`. Los archivos se guardan en disco, dentro de `uploads/`, y en MongoDB queda **solo la metadata** (nombre original, nombre generado, ruta, tipo, tamaño, tipo de documento y fecha). El contenido del archivo nunca se guarda en la base.
+
+### Endpoints
+
+| Método | Ruta | Campos del form-data | Qué hace |
+| --- | --- | --- | --- |
+| POST | `/api/users/:uid/documents` | `document` (archivo, obligatorio) y `type` (texto, opcional) | Guarda un documento del usuario y agrega su metadata a `documents` |
+| POST | `/api/orders/:oid/proof` | `proof` (archivo, obligatorio) | Guarda el comprobante de entrega del pedido y deja su metadata en `proof` |
+
+`POST /api/users/:uid/documents` responde `201` con el usuario (sin `password`) y todos sus documentos. `POST /api/orders/:oid/proof` responde `200` con el pedido actualizado, sin cambiarle el estado. Si el pedido ya tenía un comprobante, el nuevo lo reemplaza y el archivo anterior se elimina del disco.
+
+### Reglas de los archivos
+
+* **Formatos permitidos:** PDF, JPG, PNG y WEBP (`ALLOWED_FILE_TYPES`). Se validan por el tipo que declara el cliente, no por el contenido del archivo.
+* **Tamaño máximo:** 5 MB (`MAX_FILE_SIZE`).
+* **Nombre guardado:** lo genera el servidor, con la forma `<fecha en milisegundos>-<número al azar><extensión>`, por ejemplo `1763478092345-482910356.pdf`. La extensión sale del tipo permitido. Así no se pisan archivos ni se usa en el disco un nombre que eligió el cliente. El nombre original queda en la metadata.
+* **Tipos de documento:** el campo `type` de `POST /api/users/:uid/documents` acepta estos valores:
+
+| Tipo | Detalle |
+| --- | --- |
+| `user_document` | Documento general. Es el valor por defecto si no se envía `type` |
+| `driver_license` | Licencia de conducir. Solo la puede cargar un usuario con `role: "driver"` |
+| `delivery_proof` | Lo asigna el servidor a los comprobantes de pedido. No se puede enviar como `type` de un documento de usuario |
+
+### Metadata guardada
+
+Cada documento de `User.documents` y el `Order.proof` tienen estos campos:
+
+| Campo | Detalle | Ejemplo |
+| --- | --- | --- |
+| `originalName` | Nombre original del archivo | `dni-frente.pdf` |
+| `fileName` | Nombre generado por el servidor | `1763478092345-482910356.pdf` |
+| `path` | Ubicación en el servidor, siempre con `/` (también en Windows) | `uploads/documents/1763478092345-482910356.pdf` |
+| `mimeType` | Tipo del archivo | `application/pdf` |
+| `size` | Tamaño en bytes | `184320` |
+| `type` | Tipo de documento | `user_document` |
+| `uploadedAt` | Fecha de la carga | `2026-11-18T15:04:21.000Z` |
+
+### Carpetas y Git
+
+Cada tipo de archivo se guarda en su carpeta:
+
+```txt
+uploads/
+├── documents/   Documentos de usuario
+└── proofs/      Comprobantes de pedido
+```
+
+Multer crea las carpetas al arrancar la aplicación, así que no hace falta crearlas a mano. `uploads` está en el `.gitignore`: los archivos cargados no se suben al repositorio.
+
+### Cómo está armado
+
+* `src/middlewares/upload.middleware.js` concentra la configuración de Multer: dónde se guardan los archivos, cómo se nombran, qué tipos se aceptan y el tamaño máximo. Exporta un middleware por endpoint (`uploadDocument` y `uploadProof`) y los routers solo lo ponen antes del controller, sin configuración propia:
+
+```js
+router.post("/:uid/documents", uploadDocument, uploadUserDocument);
+```
+
+* Ese mismo middleware traduce los errores de Multer a códigos del proyecto (`FILE_TOO_LARGE`, `INVALID_FILE_FIELD`, `UPLOAD_ERROR`). Los errores de carga salen por el `errorHandler`, con la misma estructura que el resto de la API (ver [Manejo de errores](#manejo-de-errores)).
+* `src/utils/files.js` arma la metadata (`buildFileData`) y borra archivos (`removeFile`).
+* El Service valida lo que depende de los datos (que el archivo exista, el tipo de documento, que el usuario o el pedido existan y la regla de la licencia) y guarda la metadata. El Repository es el único que usa Mongoose: `addDocument` agrega el documento al usuario y `updateProof` guarda el comprobante del pedido.
+
+### Archivos sueltos
+
+Multer guarda el archivo antes de que el Service valide el resto. Si algo falla después (por ejemplo, el usuario no existe o el `type` no es válido), el Service borra el archivo recién guardado y lanza el error, así que los errores no dejan archivos sueltos en `uploads/`. Los errores del propio Multer (tipo no permitido, archivo demasiado grande) no llegan a dejar nada en el disco.
+
+Al eliminar un usuario, se borran también sus documentos de `uploads/documents`, y al eliminar un pedido, su comprobante de `uploads/proofs`. Si el archivo ya no está en el disco, la eliminación igual se completa y se registra un `warning`.
+
+### Cómo probar la carga
+
+Con Thunder Client o una herramienta similar:
+
+1. Crear un usuario (o un pedido) y copiar su `_id`.
+2. Hacer `POST http://localhost:8080/api/users/<id>/documents`, o `POST http://localhost:8080/api/orders/<id>/proof`.
+3. En **Body** elegir **Form**. En **Files** escribir el nombre del campo (`document` o `proof`) y elegir el archivo. El `type`, si se envía, va en **Form Fields**. No hay que agregar el header `Content-Type`: la herramienta lo arma sola.
+4. La respuesta es `201` o `200`, con la metadata, y el archivo aparece en `uploads/documents` o `uploads/proofs` con su nombre generado.
+
+Los casos de error están en la tabla de [Cómo probar los casos inválidos](#cómo-probar-los-casos-inválidos). Desde Swagger, cada endpoint de carga muestra un selector de archivo (ver [Cómo probar los endpoints desde Swagger](#cómo-probar-los-endpoints-desde-swagger)).
+
 ## Manejo de errores
 
 Todos los errores de la API se resuelven en una capa común. Ningún Router, Controller ni Service arma una respuesta de error a mano: cada capa hace una sola cosa y el cliente siempre recibe la misma estructura.
@@ -440,7 +532,7 @@ Todas las respuestas de error tienen esta otra:
 | `message` | Un texto corto y legible |
 | `code` | Un identificador estable del error, para que quien consume la API pueda reaccionar sin depender del texto |
 
-El código HTTP de la respuesta (400, 404, 409 o 500) también sale del diccionario de errores, junto con el mensaje.
+El código HTTP de la respuesta (400, 404, 409, 413 o 500) también sale del diccionario de errores, junto con el mensaje.
 
 ### Cómo funciona
 
@@ -486,13 +578,19 @@ Para saber qué campo se repitió, el `errorHandler` lee `error.keyPattern` y lo
 | `ORDER_ITEMS_REQUIRED` | 400 | El pedido necesita productos | Un pedido se crea sin productos |
 | `INVALID_ORDER_STATUS` | 400 | Estado de pedido inválido | El estado enviado no es uno de `ORDER_STATUS` |
 | `INVALID_DELIVERY_STATUS` | 400 | Estado de entrega inválido | El estado enviado no es uno de `DELIVERY_STATUS` |
-| `INVALID_DRIVER_ROLE` | 400 | El usuario no es repartidor | El usuario indicado como repartidor no tiene `role: "driver"` |
+| `INVALID_DRIVER_ROLE` | 400 | El usuario no es repartidor | El usuario indicado como repartidor, o que carga una `driver_license`, no tiene `role: "driver"` |
 | `INVALID_MOCK_AMOUNT` | 400 | Cantidad inválida | Una cantidad de los mocks no es un entero válido (texto, negativa, decimal o todas en 0) |
 | `MOCK_AMOUNT_TOO_LARGE` | 400 | Cantidad máxima: 1000 | Una cantidad de los mocks supera el máximo de 1000 |
 | `MOCK_USERS_REQUIRED` | 400 | Faltan usuarios para generar pedidos | Se piden `orders` sin pedir `users` en la misma solicitud |
 | `NO_STORES_AVAILABLE` | 400 | No hay comercios registrados | Se piden `orders` pero no hay comercios en la base |
 | `MOCK_DELIVERIES_REQUIRED` | 400 | Faltan pedidos y repartidores | Se piden `deliveries` sin pedir `orders` y `drivers` en la misma solicitud |
 | `MOCK_GENERATION_ERROR` | 500 | Error al generar los datos | MongoDB falla al insertar los datos de prueba |
+| `FILE_REQUIRED` | 400 | Archivo requerido | No se envía ningún archivo, o la petición no es `multipart/form-data` |
+| `INVALID_FILE_TYPE` | 400 | Tipo de archivo no permitido | El archivo no es PDF, JPG, PNG ni WEBP |
+| `FILE_TOO_LARGE` | 413 | El archivo supera el máximo de 5 MB | El archivo pesa más que `MAX_FILE_SIZE` |
+| `INVALID_FILE_FIELD` | 400 | Campo de archivo inválido | El archivo no viene en el campo esperado (`document` o `proof`) o el campo no tiene nombre |
+| `INVALID_DOCUMENT_TYPE` | 400 | Tipo de documento inválido | El `type` enviado no es `user_document` ni `driver_license` |
+| `UPLOAD_ERROR` | 500 | Error al guardar el archivo | Multer no puede procesar o guardar el archivo, por ejemplo con un form-data cortado |
 
 ### Códigos de estado HTTP
 
@@ -500,10 +598,11 @@ Para saber qué campo se repitió, el `errorHandler` lee `error.keyPattern` y lo
 | --- | --- |
 | 200 | Consulta, actualización o eliminación exitosa |
 | 201 | Recurso creado |
-| 400 | Datos inválidos, faltan campos obligatorios, el ID tiene un formato incorrecto o una cantidad de los mocks no es válida |
+| 400 | Datos inválidos, faltan campos obligatorios, el ID tiene un formato incorrecto, una cantidad de los mocks no es válida o el archivo cargado no es válido (falta, tipo no permitido o campo incorrecto) |
 | 404 | El recurso solicitado no existe, o la ruta no existe |
 | 409 | El email ya está registrado, o se repite el valor de otro campo único |
-| 500 | Error inesperado, o falla de MongoDB al generar datos de prueba |
+| 413 | El archivo cargado supera el tamaño máximo |
+| 500 | Error inesperado, falla de MongoDB al generar datos de prueba o falla al guardar un archivo |
 
 ### Cómo probar los casos inválidos
 
@@ -538,6 +637,20 @@ Casos del módulo de mocks:
 | `POST /api/mocks/generateData` con `{ "users": 2, "orders": 3 }`, sin comercios en la base | `400`, `NO_STORES_AVAILABLE` |
 
 `MOCK_GENERATION_ERROR` aparece si MongoDB falla durante la carga, por ejemplo si se pierde la conexión con la base mientras se llama a `generateData`.
+
+Casos de la carga de archivos:
+
+| Request | Resultado esperado |
+| --- | --- |
+| `POST /api/users/:uid/documents` sin archivo | `400`, `FILE_REQUIRED` |
+| `POST /api/users/:uid/documents` con un `.txt` en el campo `document` | `400`, `INVALID_FILE_TYPE` |
+| `POST /api/users/:uid/documents` con un archivo de más de 5 MB | `413`, `FILE_TOO_LARGE` |
+| `POST /api/users/:uid/documents` con el archivo en un campo que no es `document` | `400`, `INVALID_FILE_FIELD` |
+| `POST /api/users/:uid/documents` con `type` igual a `delivery_proof` | `400`, `INVALID_DOCUMENT_TYPE` |
+| `POST /api/users/:uid/documents` con `type` igual a `driver_license` para un usuario que no es repartidor | `400`, `INVALID_DRIVER_ROLE` |
+| `POST /api/users/:uid/documents` con un usuario que no existe | `404`, `USER_NOT_FOUND` |
+| `POST /api/orders/:oid/proof` con un pedido que no existe | `404`, `ORDER_NOT_FOUND` |
+| `POST /api/orders/:oid/proof` sin archivo, o con un tipo, un tamaño o un campo (`proof`) inválido | Los mismos errores de arriba |
 
 Todos estos casos están automatizados en la suite de tests, como se explica en [Testing](#testing).
 
@@ -579,9 +692,11 @@ En la consola el nivel se muestra con color; en el archivo, no.
 | Servidor iniciado y MongoDB conectado | `info` | `server.js`, `config/db.js` |
 | No se pudo iniciar el servidor (por ejemplo, falla la conexión a MongoDB) | `fatal` | `server.js` |
 | Cada petición: método, ruta, status y duración | `http` | `middlewares/requestLogger.js` |
-| Errores esperados: ruta inexistente, recurso no encontrado, cantidad de mocks inválida, email repetido, etc. | `warning` | `middlewares/errorHandler.js` |
+| Errores esperados: ruta inexistente, recurso no encontrado, cantidad de mocks inválida, email repetido, archivo inválido, etc. | `warning` | `middlewares/errorHandler.js` |
+| Archivo rechazado por su tipo (con el tipo y el nombre original) | `warning` | `middlewares/upload.middleware.js` |
+| No se pudo borrar un archivo del disco | `warning` | `utils/files.js` |
 | Error inesperado del servidor y falla al generar datos de prueba | `error` | `middlewares/errorHandler.js`, `services/mocks.service.js` |
-| Pedido creado, entrega creada y datos de prueba generados | `info` | `services` |
+| Pedido creado, entrega creada, documento cargado, comprobante asociado a un pedido y datos de prueba generados | `info` | `services` |
 | Cantidades que se piden al generar datos de prueba | `debug` | `services/mocks.service.js` |
 
 El `errorHandler` registra cada error con el formato `CÓDIGO - mensaje - MÉTODO ruta`. Los errores del servidor (500) incluyen además el detalle y el stack del error original, que nunca se envía al cliente. No se registra el body de las peticiones, para no guardar datos sensibles como contraseñas. La respuesta que recibe el cliente es la misma de siempre.
@@ -653,8 +768,8 @@ La documentación está agrupada en cinco tags, y cada uno tiene su archivo en `
 
 | Tag | Endpoints | Archivo |
 | --- | --- | --- |
-| Users | `/api/users`, `/api/users/{uid}` | `users.yaml` |
-| Orders | `/api/orders`, `/api/orders/{oid}`, `/api/orders/{oid}/status` | `orders.yaml` |
+| Users | `/api/users`, `/api/users/{uid}`, `/api/users/{uid}/documents` | `users.yaml` |
+| Orders | `/api/orders`, `/api/orders/{oid}`, `/api/orders/{oid}/status`, `/api/orders/{oid}/proof` | `orders.yaml` |
 | Deliveries | `/api/deliveries`, `/api/deliveries/{did}`, `/api/deliveries/{did}/status` | `deliveries.yaml` |
 | Mocks | `/api/mocks/mockingusers`, `/api/mocks/mockingorders`, `/api/mocks/generateData` | `mocks.yaml` |
 | Logger | `/loggerTest` | `logger.yaml` |
@@ -669,10 +784,13 @@ Los schemas reutilizables están en `src/docs/schemas.yaml`:
 | --- | --- |
 | `User`, `Order`, `OrderItem`, `Delivery` | Las entidades principales |
 | `Store` | El comercio, que aparece dentro de un pedido cuando se consulta con sus datos completos |
+| `Document` | La metadata de un archivo cargado, que usan `User.documents` y `Order.proof` |
 | `SuccessResponse` | La base de toda respuesta exitosa, `{ status: "success" }`, a la que cada endpoint le suma su `payload` |
 | `ErrorResponse` | La respuesta de error, `{ status, message, code }`, con los códigos de [Manejo de errores](#manejo-de-errores) |
 
-También define dos respuestas reutilizables: `InvalidId` (400, ID con formato inválido) e `InternalServerError` (500).
+También define cuatro respuestas reutilizables: `InvalidId` (400, ID con formato inválido), `InternalServerError` (500), `FileTooLarge` (413, archivo demasiado grande) y `UploadServerError` (500 de los endpoints de carga: error inesperado o `UPLOAD_ERROR`).
+
+Los dos endpoints de carga se documentan como `multipart/form-data`: indican el campo del archivo (`document` o `proof`), el campo extra `type` y sus valores permitidos, el formato y el tamaño máximo, la respuesta exitosa y cada error posible.
 
 ### Cómo está armada
 
@@ -690,6 +808,7 @@ En cada endpoint, tocar **Try it out**, completar los datos y tocar **Execute**.
 * Para crear una entrega hacen falta un pedido y un usuario con `role: "driver"`, que se puede crear con `POST /api/users` o con `generateData`.
 * En los `GET` de Mocks, Swagger UI solo deja enviar `qty` si es un número entero, así que `abc` o `2.5` no se pueden probar desde ahí y se prueban con Thunder Client. En cambio `0`, `-5` y `5000` sí, y devuelven `INVALID_MOCK_AMOUNT` y `MOCK_AMOUNT_TOO_LARGE`.
 * `POST /api/mocks/generateData` guarda datos de prueba en la base. Los `GET` de Mocks no guardan nada.
+* En los endpoints de carga, Swagger UI muestra un selector de archivo en el campo `document` o `proof`: usar el botón para seleccionar el archivo (el texto depende del idioma del navegador; en español dice **Seleccionar archivo**), elegir un PDF, JPG, PNG o WEBP de hasta 5 MB y ejecutar. El archivo se guarda de verdad en `uploads/`.
 
 ## Testing
 
@@ -728,9 +847,9 @@ cp .env.test.example .env.test
 npm test
 ```
 
-Al terminar, el resumen tiene que mostrar todos los tests en `passing` y ninguno en `failing` (156 en esta versión). La suite se puede correr todas las veces que haga falta, una detrás de otra, sin limpiar nada a mano.
+Al terminar, el resumen tiene que mostrar todos los tests en `passing` y ninguno en `failing` (180 en esta versión). La suite se puede correr todas las veces que haga falta, una detrás de otra, sin limpiar nada a mano.
 
-Para correr solo un recurso se filtra por el nombre de su `describe` (`Users`, `Orders`, `Deliveries`, `Stores`, `Mocks` o `Swagger`):
+Para correr solo un recurso se filtra por el nombre de su `describe` (`Users`, `Orders`, `Deliveries`, `Stores`, `Mocks`, `Swagger` o `Carga de archivos`):
 
 ```bash
 npm test -- --grep "^Orders"
@@ -770,6 +889,7 @@ El `.env.test` tiene credenciales, así que está en el `.gitignore` y no se sub
 * Los datos se crean dentro de cada test usando la propia API, con las funciones de `tests/helpers.js` (`createUser`, `createOrder`, `createDelivery`, etc.). Nunca se cargan a mano. Por ejemplo, para probar un pedido primero se crean un cliente y un comercio, y el pedido se arma con sus IDs.
 * Antes de todos los tests (`beforeAll`) se conecta a la base, se crean los índices (como el índice único del email) y se vacía todo. Al terminar (`afterAll`) se vacía de nuevo y se desconecta. Por eso la base queda limpia y una segunda corrida seguida da el mismo resultado.
 * La limpieza usa `deleteMany`, y no borrar la base entera, para no perder los índices.
+* Los tests de carga arman los archivos en memoria (no hay archivos de prueba en el repositorio) y, después de cada test, borran de `uploads/` solo los archivos que ese test creó, así que no tocan lo que ya hubiera en esas carpetas.
 * Los errores `500` y los casos que MongoDB no produce a pedido se simulan con `mock.method`. Para comprobar qué registra el logger, `tests/logging.test.js` reemplaza sus métodos por espías que anotan con qué mensaje fueron llamados. Después de cada test se restauran los métodos originales.
 
 ### Módulos cubiertos
@@ -782,6 +902,7 @@ El `.env.test` tiene credenciales, así que está en el `.gitignore` y no se sub
 | `tests/mocks.test.js` | `GET /api/mocks/mockingusers`, `GET /api/mocks/mockingorders` y `POST /api/mocks/generateData`: estructura de los datos, cantidades válidas e inválidas y datos guardados en la base |
 | `tests/logging.test.js` | `GET /loggerTest` y lo que registra el logger: errores según su tipo, eventos de pedido, entrega y `generateData`, y cada petición (`http`) |
 | `tests/swagger.test.js` | `GET /api/docs` y la coherencia entre los endpoints documentados y los que cubre la suite |
+| `tests/uploads.test.js` | `POST /api/users/:uid/documents` y `POST /api/orders/:oid/proof`: carga exitosa, reemplazo del comprobante, cada error de validación, que no queden archivos sueltos, el borrado de los archivos al eliminar el usuario o el pedido y lo que registra el logger |
 | `tests/errors.test.js` | Ruta inexistente (`ROUTE_NOT_FOUND`), error `11000` de otros campos (`DUPLICATE_KEY`) y error inesperado (`INTERNAL_SERVER_ERROR`) |
 | `tests/stores.test.js` | `GET /api/stores/:sid` con un comercio que no existe. Stores no está en Swagger ni es parte de lo pedido: el resto se usa como dato de apoyo para crear pedidos |
 | `tests/entorno.test.js` | Conexión a la base de testing, `GET /health` y la limpieza de colecciones |
@@ -790,6 +911,7 @@ El `.env.test` tiene credenciales, así que está en el `.gitignore` y no se sub
 
 * **Respuestas exitosas:** el status HTTP, `status: "success"` y la estructura del `payload`: las propiedades exactas de cada entidad, el formato de los IDs (24 caracteres hexadecimales) y de las fechas (ISO), los valores calculados (como el `total` de un pedido) y que nunca se devuelva el `password`. En los `GET` por ID se verifica además lo que trae `populate` (cliente, comercio, pedido o repartidor completos).
 * **Errores esperados:** el status HTTP y que el body sea exactamente `{ status, message, code }`, con el mensaje del diccionario de errores. Cubre datos incompletos, IDs inválidos, JSON mal formado, recursos inexistentes, estados inválidos, cantidades inválidas de los mocks y rutas inexistentes.
+* **Archivos:** que el archivo quede en `uploads/` con el nombre generado y la metadata correcta, que los errores no dejen archivos sueltos, que reemplazar un comprobante borre el anterior y que eliminar un usuario o un pedido borre sus archivos.
 * **Coherencia con Swagger:** cada respuesta documentada en `src/docs/*.yaml` tiene su test (por ejemplo, un `404` documentado tiene un test que lo provoca y verifica su `code`). Además, `tests/swagger.test.js` compara la lista de endpoints y status documentados con una tabla de lo que cubre la suite: si se documenta algo nuevo y no se agrega su test, falla.
 
 ## Autor
