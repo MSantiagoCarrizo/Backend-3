@@ -284,3 +284,92 @@ paths:
                 code: ORDER_NOT_FOUND
         "500":
           $ref: '#/components/responses/InternalServerError'
+
+  /api/orders/{oid}/proof:
+    post:
+      summary: Cargar el comprobante de un pedido
+      description: >
+        Sube el comprobante de entrega como multipart/form-data y lo asocia al pedido. El archivo
+        queda en el servidor (uploads/proofs) y en el pedido solo se guarda la metadata. El archivo
+        va en el campo proof y puede ser PDF, JPG, PNG o WEBP de hasta 5 MB. Si el pedido ya tenía
+        un comprobante, lo reemplaza y el archivo anterior se elimina. No cambia el estado del pedido.
+      tags:
+        - Orders
+      parameters:
+        - name: oid
+          in: path
+          required: true
+          description: ID del pedido
+          schema:
+            type: string
+            example: 665f4d0a8f9a1b001234abcd
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - proof
+              properties:
+                proof:
+                  type: string
+                  format: binary
+                  description: Comprobante a subir. PDF, JPG, PNG o WEBP, de hasta 5 MB.
+      responses:
+        "200":
+          description: Comprobante cargado correctamente. Devuelve el pedido actualizado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        $ref: '#/components/schemas/Order'
+        "400":
+          description: Archivo, campo o ID inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                archivoRequerido:
+                  summary: No se envió ningún archivo
+                  value:
+                    status: error
+                    message: Archivo requerido
+                    code: FILE_REQUIRED
+                tipoArchivoInvalido:
+                  summary: El archivo no es PDF, JPG, PNG ni WEBP
+                  value:
+                    status: error
+                    message: Tipo de archivo no permitido
+                    code: INVALID_FILE_TYPE
+                campoInvalido:
+                  summary: El archivo no se envió en el campo proof
+                  value:
+                    status: error
+                    message: Campo de archivo inválido
+                    code: INVALID_FILE_FIELD
+                idInvalido:
+                  summary: El ID de la URL no tiene un formato válido
+                  value:
+                    status: error
+                    message: ID inválido
+                    code: INVALID_ID
+        "404":
+          description: Pedido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Pedido no encontrado
+                code: ORDER_NOT_FOUND
+        "413":
+          $ref: '#/components/responses/FileTooLarge'
+        "500":
+          $ref: '#/components/responses/UploadServerError'

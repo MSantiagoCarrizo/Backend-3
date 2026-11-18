@@ -17,8 +17,8 @@ const swaggerOptions = {
       },
     ],
     tags: [
-      { name: 'Users', description: 'Alta, consulta, modificación y baja de usuarios.' },
-      { name: 'Orders', description: 'Pedidos de los clientes a los comercios y su estado.' },
+      { name: 'Users', description: 'Alta, consulta, modificación y baja de usuarios, y carga de sus documentos.' },
+      { name: 'Orders', description: 'Pedidos de los clientes a los comercios, su estado y su comprobante de entrega.' },
       { name: 'Deliveries', description: 'Entregas de los pedidos, asignadas a repartidores.' },
       { name: 'Mocks', description: 'Herramientas de desarrollo para generar datos de prueba. No son funcionalidad de negocio.' },
       { name: 'Logger', description: 'Herramienta para validar el logger. No es funcionalidad de negocio.' },

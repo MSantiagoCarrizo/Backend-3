@@ -277,3 +277,110 @@ paths:
                 code: USER_NOT_FOUND
         "500":
           $ref: '#/components/responses/InternalServerError'
+
+  /api/users/{uid}/documents:
+    post:
+      summary: Cargar un documento de un usuario
+      description: >
+        Sube un archivo como multipart/form-data y guarda su metadata en el usuario. El archivo
+        queda en el servidor (uploads/documents) y en la base solo se guarda la metadata. El
+        archivo va en el campo document y puede ser PDF, JPG, PNG o WEBP de hasta 5 MB. Si no se
+        envía type, el documento queda como user_document. La licencia (driver_license) solo la
+        puede cargar un usuario con role driver.
+      tags:
+        - Users
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          description: ID del usuario
+          schema:
+            type: string
+            example: 665f4d0a8f9a1b001234abce
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - document
+              properties:
+                document:
+                  type: string
+                  format: binary
+                  description: Archivo a subir. PDF, JPG, PNG o WEBP, de hasta 5 MB.
+                type:
+                  type: string
+                  enum: [user_document, driver_license]
+                  default: user_document
+                  description: Tipo de documento. Valores permitidos, user_document o driver_license. Si no se envía, queda como user_document.
+      responses:
+        "201":
+          description: Documento cargado correctamente. Devuelve el usuario con sus documentos.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      payload:
+                        $ref: '#/components/schemas/User'
+        "400":
+          description: Archivo, campo, tipo de documento o ID inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                archivoRequerido:
+                  summary: No se envió ningún archivo
+                  value:
+                    status: error
+                    message: Archivo requerido
+                    code: FILE_REQUIRED
+                tipoArchivoInvalido:
+                  summary: El archivo no es PDF, JPG, PNG ni WEBP
+                  value:
+                    status: error
+                    message: Tipo de archivo no permitido
+                    code: INVALID_FILE_TYPE
+                campoInvalido:
+                  summary: El archivo no se envió en el campo document
+                  value:
+                    status: error
+                    message: Campo de archivo inválido
+                    code: INVALID_FILE_FIELD
+                tipoDocumentoInvalido:
+                  summary: El type no es user_document ni driver_license
+                  value:
+                    status: error
+                    message: Tipo de documento inválido
+                    code: INVALID_DOCUMENT_TYPE
+                rolInvalido:
+                  summary: Se cargó una driver_license a un usuario que no es repartidor
+                  value:
+                    status: error
+                    message: El usuario no es repartidor
+                    code: INVALID_DRIVER_ROLE
+                idInvalido:
+                  summary: El ID de la URL no tiene un formato válido
+                  value:
+                    status: error
+                    message: ID inválido
+                    code: INVALID_ID
+        "404":
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Usuario no encontrado
+                code: USER_NOT_FOUND
+        "413":
+          $ref: '#/components/responses/FileTooLarge'
+        "500":
+          $ref: '#/components/responses/UploadServerError'
