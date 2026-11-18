@@ -72,6 +72,8 @@ export const userService = {
       throw createError(ERROR_CODES.USER_NOT_FOUND);
     }
 
+    await Promise.all(user.documents.map((document) => removeFile(document.path)));
+
     return user;
   },
 };

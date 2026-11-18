@@ -104,6 +104,10 @@ export const orderService = {
       throw createError(ERROR_CODES.ORDER_NOT_FOUND);
     }
 
+    if (order.proof) {
+      await removeFile(order.proof.path);
+    }
+
     return order;
   },
 };

@@ -170,7 +170,7 @@ paths:
 
     delete:
       summary: Eliminar un pedido
-      description: Elimina el pedido y devuelve sus datos.
+      description: Elimina el pedido y devuelve sus datos. También elimina del disco su comprobante, si tenía uno.
       tags:
         - Orders
       parameters:

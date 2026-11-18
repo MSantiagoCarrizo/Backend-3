@@ -240,7 +240,7 @@ paths:
 
     delete:
       summary: Eliminar un usuario
-      description: Elimina el usuario y devuelve sus datos.
+      description: Elimina el usuario y devuelve sus datos. También elimina del disco los documentos que tenía cargados.
       tags:
         - Users
       parameters:

@@ -253,6 +253,45 @@ describe('Carga de archivos', () => {
         });
     });
 
+    describe('Eliminación de los archivos', () => {
+        it('al eliminar un pedido se elimina su comprobante del disco', async () => {
+            const { order } = await createOrder();
+            const { body } = await api.post(`/api/orders/${order._id}/proof`).attach('proof', PNG.content, PNG.options);
+            expect(fs.existsSync(body.payload.proof.path)).to.equal(true);
+
+            const res = await api.delete(`/api/orders/${order._id}`);
+
+            expect(res.status).to.equal(200);
+            expect(fs.existsSync(body.payload.proof.path)).to.equal(false);
+            expect(createdFiles()).to.deep.equal([]);
+        });
+
+        it('al eliminar un usuario se eliminan sus documentos del disco', async () => {
+            const user = await createUser();
+            await api.post(`/api/users/${user._id}/documents`).attach('document', PDF.content, PDF.options);
+            await api.post(`/api/users/${user._id}/documents`).attach('document', PNG.content, PNG.options);
+            expect(createdFiles()).to.have.lengthOf(2);
+
+            const res = await api.delete(`/api/users/${user._id}`);
+
+            expect(res.status).to.equal(200);
+            expect(createdFiles()).to.deep.equal([]);
+        });
+
+        it('si el archivo ya no está en el disco, igual se elimina el registro y se registra un warning', async () => {
+            const warning = mock.method(logger, 'warning', () => { });
+            const { order } = await createOrder();
+            const { body } = await api.post(`/api/orders/${order._id}/proof`).attach('proof', PNG.content, PNG.options);
+            fs.rmSync(body.payload.proof.path);
+
+            const res = await api.delete(`/api/orders/${order._id}`);
+
+            expect(res.status).to.equal(200);
+            expect(warning.mock.calls.some((call) => call.arguments[0].startsWith(`No se pudo borrar el archivo ${body.payload.proof.path}`))).to.equal(true);
+            assertError(await api.get(`/api/orders/${order._id}`), 404, 'ORDER_NOT_FOUND');
+        });
+    });
+
     describe('Registro de eventos', () => {
         it('cargar un documento registra info con el archivo, el tipo y el usuario', async () => {
             const info = mock.method(logger, 'info', () => { });
