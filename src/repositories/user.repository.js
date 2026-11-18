@@ -26,6 +26,14 @@ export const userRepository = {
     }).select('-password');
   },
 
+  addDocument: async (id, document) => {
+    return UserModel.findByIdAndUpdate(
+      id,
+      { $push: { documents: document } },
+      { new: true, runValidators: true },
+    ).select('-password');
+  },
+
   delete: async (id) => {
     return UserModel.findByIdAndDelete(id).select('-password');
   },

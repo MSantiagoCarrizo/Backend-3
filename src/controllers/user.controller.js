@@ -49,3 +49,13 @@ export const deleteUser = async (req, res, next) => {
     next(error);
   }
 };
+
+export const uploadUserDocument = async (req, res, next) => {
+  try {
+    const user = await userService.addDocument(req.params.uid, req.file, req.body.type);
+
+    res.status(201).json({ status: 'success', payload: user });
+  } catch (error) {
+    next(error);
+  }
+};

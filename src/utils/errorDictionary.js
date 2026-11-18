@@ -1,4 +1,4 @@
-import { MOCK_MAX_QUANTITY } from '../constants/index.js';
+import { MOCK_MAX_QUANTITY, MAX_FILE_SIZE } from '../constants/index.js';
 
 export const ERROR_CODES = Object.freeze({
   INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
@@ -23,6 +23,12 @@ export const ERROR_CODES = Object.freeze({
   NO_STORES_AVAILABLE: 'NO_STORES_AVAILABLE',
   MOCK_DELIVERIES_REQUIRED: 'MOCK_DELIVERIES_REQUIRED',
   MOCK_GENERATION_ERROR: 'MOCK_GENERATION_ERROR',
+  FILE_REQUIRED: 'FILE_REQUIRED',
+  INVALID_FILE_TYPE: 'INVALID_FILE_TYPE',
+  FILE_TOO_LARGE: 'FILE_TOO_LARGE',
+  INVALID_FILE_FIELD: 'INVALID_FILE_FIELD',
+  INVALID_DOCUMENT_TYPE: 'INVALID_DOCUMENT_TYPE',
+  UPLOAD_ERROR: 'UPLOAD_ERROR',
 });
 
 export const ERROR_DICTIONARY = Object.freeze({
@@ -48,4 +54,10 @@ export const ERROR_DICTIONARY = Object.freeze({
   [ERROR_CODES.NO_STORES_AVAILABLE]: { statusCode: 400, message: 'No hay comercios registrados' },
   [ERROR_CODES.MOCK_DELIVERIES_REQUIRED]: { statusCode: 400, message: 'Faltan pedidos y repartidores' },
   [ERROR_CODES.MOCK_GENERATION_ERROR]: { statusCode: 500, message: 'Error al generar los datos' },
+  [ERROR_CODES.FILE_REQUIRED]: { statusCode: 400, message: 'Archivo requerido' },
+  [ERROR_CODES.INVALID_FILE_TYPE]: { statusCode: 400, message: 'Tipo de archivo no permitido' },
+  [ERROR_CODES.FILE_TOO_LARGE]: { statusCode: 413, message: `El archivo supera el máximo de ${MAX_FILE_SIZE / 1024 / 1024} MB` },
+  [ERROR_CODES.INVALID_FILE_FIELD]: { statusCode: 400, message: 'Campo de archivo inválido' },
+  [ERROR_CODES.INVALID_DOCUMENT_TYPE]: { statusCode: 400, message: 'Tipo de documento inválido' },
+  [ERROR_CODES.UPLOAD_ERROR]: { statusCode: 500, message: 'Error al guardar el archivo' },
 });
