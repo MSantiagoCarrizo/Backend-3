@@ -60,7 +60,7 @@ export const userService = {
 
       return updatedUser;
     } catch (error) {
-      await removeFile(file);
+      await removeFile(file.path);
       throw error;
     }
   },

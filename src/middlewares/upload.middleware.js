@@ -7,6 +7,7 @@ import logger from '../config/logger.js';
 const MULTER_ERROR_CODES = {
     LIMIT_FILE_SIZE: ERROR_CODES.FILE_TOO_LARGE,
     LIMIT_UNEXPECTED_FILE: ERROR_CODES.INVALID_FILE_FIELD,
+    MISSING_FIELD_NAME: ERROR_CODES.INVALID_FILE_FIELD,
 };
 
 const fileFilter = (req, file, cb) => {
@@ -46,3 +47,4 @@ const createUpload = (folder, field) => {
 };
 
 export const uploadDocument = createUpload(UPLOAD_FOLDERS.DOCUMENTS, 'document');
+export const uploadProof = createUpload(UPLOAD_FOLDERS.PROOFS, 'proof');

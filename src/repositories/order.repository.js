@@ -25,6 +25,14 @@ export const orderRepository = {
     );
   },
 
+  updateProof: async (id, proof) => {
+    return OrderModel.findByIdAndUpdate(
+      id,
+      { proof },
+      { new: true, runValidators: true },
+    );
+  },
+
   delete: async (id) => {
     return OrderModel.findByIdAndDelete(id)
   }

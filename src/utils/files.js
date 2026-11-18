@@ -11,10 +11,10 @@ export const buildFileData = (file, type) => ({
     uploadedAt: new Date(),
 });
 
-export const removeFile = async (file) => {
+export const removeFile = async (filePath) => {
     try {
-        await fs.unlink(file.path);
+        await fs.unlink(filePath);
     } catch (error) {
-        logger.warning(`No se pudo borrar el archivo ${file.path}: ${error.message}`);
+        logger.warning(`No se pudo borrar el archivo ${filePath}: ${error.message}`);
     }
 };
